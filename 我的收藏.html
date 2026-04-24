@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>我的收藏</title>
+  <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ZmNDQ2NiI+PHBhdGggZD0iTTEyIDIxLjM1bC0xLjQ1LTEuMzJDNS40IDE1LjM2IDIgMTIuMjggMiA4LjUgMiA1LjQyIDQuNDIgMyA3LjUgM2MxLjc0IDAgMy40MS44MSA0LjUgMi4wOUMxMy4wOSAzLjgxIDE0Ljc2IDMgMTYuNSAzIDE5LjU4IDMgMjIgNS40MiAyMiA4LjVjMCAzLjc4LTMuNCA2Ljg2LTguNTUgMTEuNTRMMTIgMjEuMzV6Ii8+PC9zdmc+" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #0e1117;
+      --card-bg: rgba(255, 255, 255, 0.04);
+      --card-border: rgba(255, 255, 255, 0.06);
+      --card-glow: rgba(100, 140, 220, 0.12);
+      --text: rgba(255, 255, 255, 0.90);
+      --text-secondary: rgba(255, 255, 255, 0.50);
+      --text-muted: rgba(255, 255, 255, 0.30);
+      --accent: #5c8ce0;
+      --accent-soft: rgba(92, 140, 224, 0.30);
+      --danger: rgba(255, 120, 120, 0.75);
+      --danger-hover: rgba(255, 90, 90, 0.95);
+      --radius-card: 20px;
+      --radius-input: 28px;
+      --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      -webkit-tap-highlight-color: transparent;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: radial-gradient(circle at 20% 20%, #1a2332 0%, #0b0f16 70%);
+      background-attachment: fixed;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: contain;
+      position: relative;
+      color: var(--text);
+    }
+
+    /* 背景光晕装饰 */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -20%;
+      left: -10%;
+      width: 70%;
+      height: 70%;
+      background: radial-gradient(circle, rgba(80, 130, 240, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: -15%;
+      right: -5%;
+      width: 65%;
+      height: 65%;
+      background: radial-gradient(circle, rgba(180, 100, 240, 0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* 自定义滚动条 */
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      transition: background 0.2s;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.28);
+    }
+    @-moz-document url-prefix() {
+      html {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+      }
+    }
+
+    .app-container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 560px;
+      padding: 28px 18px 44px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ---------- 输入面板 ---------- */
+    .input-panel {
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      border-radius: 24px;
+      padding: 18px 16px 20px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: all var(--transition);
+    }
+    .input-panel:focus-within {
+      border-color: rgba(255, 255, 255, 0.14);
+      box-shadow: 0 8px 36px rgba(0, 0, 0, 0.50), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .input-field {
+      flex: 1;
+      min-width: 140px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1.5px solid rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-input);
+      padding: 12px 18px;
+      font-size: 15px;
+      color: var(--text);
+      font-family: var(--font-sans);
+      outline: none;
+      transition: all var(--transition);
+      letter-spacing: 0.01em;
+      -webkit-appearance: none;
+    }
+    .input-field::placeholder {
+      color: var(--text-muted);
+    }
+    .input-field:focus {
+      background: rgba(255, 255, 255, 0.10);
+      border-color: rgba(255, 255, 255, 0.20);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .url-input {
+      font-family: 'SF Mono', 'Cascadia Code', monospace;
+      font-size: 13.5px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 11px 20px;
+      border-radius: var(--radius-input);
+      border: none;
+      font-size: 14.5px;
+      font-weight: 590;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      font-family: var(--font-sans);
+      transition: all var(--transition);
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      position: relative;
+      overflow: hidden;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn:active {
+      transform: scale(0.96);
+    }
+
+    /* 添加按钮高亮 */
+    .btn-add {
+      background: linear-gradient(135deg, #4b7fd6, #3a64c0);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.20);
+      box-shadow: 0 4px 12px rgba(70, 110, 220, 0.35), 0 0 12px rgba(92, 140, 224, 0.18);
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+    .btn-add:hover {
+      background: linear-gradient(135deg, #5c8ce0, #4870d0);
+      box-shadow: 0 6px 18px rgba(70, 110, 220, 0.45), 0 0 18px rgba(92, 140, 224, 0.25);
+      transform: translateY(-1px);
+    }
+    .btn-add:active {
+      transform: scale(0.95);
+    }
+
+    /* 导出按钮低调 */
+    .btn-export {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-secondary);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      backdrop-filter: blur(10px);
+      font-weight: 500;
+      letter-spacing: 0.03em;
+    }
+    .btn-export:hover {
+      background: rgba(255, 255, 255, 0.10);
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.20);
+    }
+
+    .hint-text {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+      letter-spacing: 0.03em;
+      opacity: 0.6;
+    }
+
+    /* ---------- 卡片列表 ---------- */
+    .cards-list {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 64px 20px;
+      color: var(--text-muted);
+      font-size: 14px;
+      opacity: 0.5;
+    }
+    .empty-emoji {
+      font-size: 52px;
+      display: block;
+      margin-bottom: 16px;
+      opacity: 0.7;
+    }
+
+    /* 卡片灵动悬浮感 */
+    .card {
+      position: relative;
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border-radius: var(--radius-card);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.02);
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      transform: translateY(0) scale(1);
+      overflow: visible;
+      display: flex;
+      flex-direction: column;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: inherit;
+      padding: 1.5px;
+      background: linear-gradient(135deg, rgba(120, 160, 240, 0.25), rgba(180, 140, 240, 0.20), rgba(120, 160, 240, 0.05));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .card:hover {
+      transform: translateY(-4px) scale(1.01);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .card-media-wrapper {
+      position: relative;
+      width: 100%;
+      overflow: hidden;
+      border-radius: var(--radius-card) var(--radius-card) 0 0;
+      background: rgba(0, 0, 0, 0.20);
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+    .card-media-wrapper img,
+    .card-media-wrapper video {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 65vh;
+      object-fit: contain;
+      border-radius: var(--radius-card) var(--radius-card) 0 0;
+      transition: opacity 0.3s;
+    }
+    .card-media-wrapper iframe {
+      width: 100%;
+      height: auto;
+      min-height: 240px;
+      border: none;
+      display: block;
+      border-radius: var(--radius-card) var(--radius-card) 0 0;
+      aspect-ratio: auto;
+    }
+    .loading-spinner {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 5;
+      transition: opacity 0.25s;
+    }
+    .loading-spinner.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .spinner-ring {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(255,255,255,0.08);
+      border-top-color: rgba(150,180,230,0.7);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .fail-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.30);
+      z-index: 10;
+      cursor: pointer;
+      border-radius: var(--radius-card) var(--radius-card) 0 0;
+      transition: all 0.2s;
+    }
+    .fail-overlay:hover { background: rgba(0,0,0,0.45); }
+    .fail-emoji {
+      font-size: 44px;
+      opacity: 0.85;
+      pointer-events: none;
+      transition: transform 0.2s;
+    }
+    .fail-overlay:active .fail-emoji { transform: scale(1.15); }
+    .fail-retry-hint {
+      position: absolute;
+      bottom: 10px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+      pointer-events: none;
+    }
+
+    .card-name-tag {
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.75);
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(8px);
+      padding: 3px 10px;
+      border-radius: 12px;
+      z-index: 12;
+      pointer-events: none;
+      max-width: 70%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      letter-spacing: 0.02em;
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 8px 14px 12px;
+      z-index: 1;
+    }
+    .card-time {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-right: auto;
+      white-space: nowrap;
+    }
+    .card-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255,255,255,0.06);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 14px;
+      transition: all var(--transition);
+      flex-shrink: 0;
+      backdrop-filter: blur(10px);
+    }
+    .card-btn:hover {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+    }
+    .card-btn:active { transform: scale(0.88); }
+    .jump-btn { font-size: 15px; }
+    .delete-btn { color: var(--danger); }
+    .delete-btn:hover { background: rgba(255,100,100,0.20); color: var(--danger-hover); }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(20,22,28,0.92);
+      backdrop-filter: blur(16px);
+      color: #fff;
+      padding: 10px 24px;
+      border-radius: 24px;
+      font-size: 13.5px;
+      z-index: 999;
+      opacity: 0;
+      transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(-10px); }
+
+    @media (max-width: 480px) {
+      .app-container { padding: 18px 12px 36px; gap: 18px; }
+      .input-panel { padding: 14px 12px 16px; border-radius: 20px; }
+      .input-field { padding: 10px 14px; font-size: 14px; border-radius: 22px; }
+      .url-input { font-size: 12.5px; }
+      .btn { padding: 10px 14px; font-size: 13.5px; border-radius: 22px; }
+      .card { border-radius: 16px; }
+      .card-media-wrapper { border-radius: 16px 16px 0 0; }
+      .card-media-wrapper img, .card-media-wrapper video, .card-media-wrapper iframe { border-radius: 16px 16px 0 0; max-height: 50vh; }
+      .fail-overlay { border-radius: 16px 16px 0 0; }
+      .card-name-tag { top: 6px; left: 8px; font-size: 10px; padding: 2px 8px; }
+      .card-footer { padding: 6px 10px 10px; gap: 6px; }
+    }
+  </style>
+    <meta name="AIGC" content='{"AIGC":{"Label":"2","ContentProducer":"WUSIGRAM","ProduceID":"KqwzUJ7k3N+1pDpmT/rC7rn46iT7Esf+ID9pfPrBf+M=","ReservedCode1":"U8KPgBt3let/NMpUjpH5PegvVrXwrFueLJTQafSCxjESCsFr6rqJ/a2s1Dj62DhVZihT7rro4SCK2IOAr4sxYA==","ContentPropagator":"","PropagateID":"","ReservedCode2":""}}'>
+</head>
+<body>
+  <div class="app-container">
+    <!-- 输入区域 -->
+    <div class="input-panel">
+      <input type="text" class="input-field url-input" id="urlInput" placeholder="粘贴图片/视频/动图链接…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <input type="text" class="input-field" id="nameInput" placeholder="名称（可选）" autocomplete="off" maxlength="80">
+      <div class="btn-row">
+        <button class="btn btn-add" id="btnAdd">✦ 添加收藏</button>
+        <button class="btn btn-export" id="btnExport">⤓ 导出</button>
+      </div>
+      <p class="hint-text">支持图片、GIF、视频 · 自动降级显示</p>
+    </div>
+
+    <!-- 卡片列表 -->
+    <div class="cards-list" id="cardsList">
+      <div class="empty-state" id="emptyState">
+        <span class="empty-emoji">📁</span>
+        收藏夹空空如也
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    (function() {
+      const STORAGE_KEY = 'my_collection_v2';
+      let collectionData = [];
+
+      // 尝试读取嵌入数据（从导出的文件）
+      const embeddedScript = document.getElementById('embedded-data');
+      if (embeddedScript && embeddedScript.textContent.trim() !== 'null' && embeddedScript.textContent.trim() !== '') {
+        try {
+          const parsed = JSON.parse(embeddedScript.textContent.trim());
+          if (Array.isArray(parsed)) collectionData = parsed;
+        } catch(e){}
+      }
+      if (collectionData.length === 0) {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) collectionData = parsed;
+          }
+        } catch(e){}
+      }
+
+      function saveToStorage() {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(collectionData)); } catch(e) { showToast('⚠️ 存储空间不足'); }
+      }
+
+      const urlInput = document.getElementById('urlInput');
+      const nameInput = document.getElementById('nameInput');
+      const btnAdd = document.getElementById('btnAdd');
+      const btnExport = document.getElementById('btnExport');
+      const cardsList = document.getElementById('cardsList');
+      const toast = document.getElementById('toast');
+      let toastTimer = null;
+      function showToast(msg, duration=1800) {
+        if(toastTimer) clearTimeout(toastTimer);
+        toast.textContent = msg;
+        toast.classList.add('show');
+        toastTimer = setTimeout(()=>{ toast.classList.remove('show'); }, duration);
+      }
+
+      function isVideoUrl(url) {
+        const ext = ['.mp4','.webm','.mov','.ogg','.avi','.mkv','.flv','.wmv','.m4v','.3gp','.ogv','.ts'];
+        const lower = url.split('?')[0].split('#')[0].toLowerCase();
+        return ext.some(e=>lower.endsWith(e));
+      }
+      function isImageUrl(url) {
+        const ext = ['.jpg','.jpeg','.png','.gif','.webp','.svg','.bmp','.ico','.tiff','.tif','.avif','.apng'];
+        const lower = url.split('?')[0].split('#')[0].toLowerCase();
+        return ext.some(e=>lower.endsWith(e));
+      }
+
+      function formatTime(iso) {
+        try {
+          const d = new Date(iso);
+          if(isNaN(d.getTime())) return iso;
+          const pad=n=>String(n).padStart(2,'0');
+          return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }catch(e){return iso;}
+      }
+
+      function createCard(item, index) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.setAttribute('data-index', index);
+
+        if(item.name && item.name.trim()) {
+          const tag = document.createElement('div');
+          tag.className = 'card-name-tag';
+          tag.textContent = item.name.trim();
+          card.appendChild(tag);
+        }
+
+        const mediaWrapper = document.createElement('div');
+        mediaWrapper.className = 'card-media-wrapper';
+
+        const loadingSpinner = document.createElement('div');
+        loadingSpinner.className = 'loading-spinner';
+        loadingSpinner.innerHTML = '<div class="spinner-ring"></div>';
+        mediaWrapper.appendChild(loadingSpinner);
+
+        const failOverlay = document.createElement('div');
+        failOverlay.className = 'fail-overlay';
+        failOverlay.style.display = 'none';
+        const mediaType = item.mediaType || (isVideoUrl(item.url)?'video':'image');
+        failOverlay.innerHTML = `<span class="fail-emoji">${mediaType==='video'?'🎬':'🖼️'}</span><span class="fail-retry-hint">点击重试</span>`;
+        mediaWrapper.appendChild(failOverlay);
+
+        let mediaElement = null;
+        let iframeElement = null;
+        let loadTimeout = null;
+        let failedOnce = false;
+
+        function clearLoadTimeout() {
+          if(loadTimeout) { clearTimeout(loadTimeout); loadTimeout = null; }
+        }
+
+        function showLoading() {
+          loadingSpinner.classList.remove('hidden');
+        }
+        function hideLoading() {
+          loadingSpinner.classList.add('hidden');
+        }
+
+        function showFail() {
+          hideLoading();
+          if(mediaElement) mediaElement.style.display = 'none';
+          if(iframeElement) iframeElement.style.display = 'none';
+          failOverlay.style.display = 'flex';
+        }
+
+        function hideFail() {
+          failOverlay.style.display = 'none';
+        }
+
+        // 创建直接媒体元素
+        function createDirectElement() {
+          if(mediaType === 'video') {
+            const vid = document.createElement('video');
+            vid.src = item.url;
+            vid.preload = 'metadata';
+            vid.playsInline = true;
+            vid.controls = true;
+            vid.style.display = 'none';
+            vid.addEventListener('loadedmetadata', ()=>{
+              clearLoadTimeout();
+              hideLoading();
+              hideFail();
+              vid.style.display = 'block';
+            });
+            vid.addEventListener('error', ()=>{
+              clearLoadTimeout();
+              if(!failedOnce) {
+                failedOnce = true;
+                switchToIframe();
+              } else {
+                showFail();
+              }
+            });
+            return vid;
+          } else {
+            const img = document.createElement('img');
+            img.src = item.url;
+            img.alt = item.name || '图片';
+            img.loading = 'lazy';
+            img.style.display = 'none';
+            img.addEventListener('load', ()=>{
+              clearLoadTimeout();
+              hideLoading();
+              hideFail();
+              img.style.display = 'block';
+            });
+            img.addEventListener('error', ()=>{
+              clearLoadTimeout();
+              if(!failedOnce) {
+                failedOnce = true;
+                switchToIframe();
+              } else {
+                showFail();
+              }
+            });
+            return img;
+          }
+        }
+
+        function switchToIframe() {
+          if(iframeElement) return;
+          clearLoadTimeout();
+          hideLoading();
+          if(mediaElement) mediaElement.style.display = 'none';
+          hideFail();
+
+          iframeElement = document.createElement('iframe');
+          iframeElement.src = item.url;
+          iframeElement.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+          iframeElement.style.display = 'none';
+          iframeElement.style.minHeight = mediaType==='video' ? '220px' : '150px';
+          if(mediaType==='video') {
+            iframeElement.style.aspectRatio = '16/9';
+          }
+          mediaWrapper.appendChild(iframeElement);
+
+          showLoading();
+          iframeElement.addEventListener('load', ()=>{
+            clearLoadTimeout();
+            hideLoading();
+            iframeElement.style.display = 'block';
+            hideFail();
+          });
+          iframeElement.addEventListener('error', ()=>{
+            clearLoadTimeout();
+            showFail();
+          });
+
+          loadTimeout = setTimeout(()=>{
+            if(loadingSpinner && !loadingSpinner.classList.contains('hidden')) {
+              hideLoading();
+              if(iframeElement && iframeElement.style.display === 'none') {
+                showFail();
+              }
+            }
+          }, 10000);
+        }
+
+        // 初始化直接元素
+        mediaElement = createDirectElement();
+        mediaWrapper.appendChild(mediaElement);
+        showLoading();
+
+        loadTimeout = setTimeout(()=>{
+          if(loadingSpinner && !loadingSpinner.classList.contains('hidden')) {
+            if(!failedOnce) {
+              failedOnce = true;
+              switchToIframe();
+            } else {
+              showFail();
+            }
+          }
+        }, 8000);
+
+        // 失败覆盖点击重试
+        failOverlay.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          hideFail();
+          if(iframeElement) {
+            iframeElement.style.display = 'none';
+            iframeElement.src = '';
+            requestAnimationFrame(()=>{ iframeElement.src = item.url; });
+          } else if(mediaElement) {
+            if(mediaElement.tagName==='IMG') {
+              mediaElement.style.display = 'none';
+              const src = mediaElement.src;
+              mediaElement.src = '';
+              requestAnimationFrame(()=>{ mediaElement.src = src; });
+            } else if(mediaElement.tagName==='VIDEO') {
+              mediaElement.load();
+            }
+          }
+          showLoading();
+          clearLoadTimeout();
+          loadTimeout = setTimeout(()=>{
+            if(loadingSpinner && !loadingSpinner.classList.contains('hidden')) {
+              if(!failedOnce) {
+                failedOnce = true;
+                switchToIframe();
+              } else {
+                showFail();
+              }
+            }
+          }, 8000);
+        });
+
+        card.appendChild(mediaWrapper);
+
+        // 底部栏
+        const footer = document.createElement('div');
+        footer.className = 'card-footer';
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'card-time';
+        timeSpan.textContent = formatTime(item.timestamp);
+        footer.appendChild(timeSpan);
+
+        const jumpBtn = document.createElement('button');
+        jumpBtn.className = 'card-btn jump-btn';
+        jumpBtn.innerHTML = '↗';
+        jumpBtn.title = '新窗口打开';
+        jumpBtn.addEventListener('click', (e)=>{ e.stopPropagation(); window.open(item.url, '_blank', 'noopener,noreferrer'); });
+        footer.appendChild(jumpBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'card-btn delete-btn';
+        delBtn.innerHTML = '✕';
+        delBtn.title = '删除';
+        delBtn.addEventListener('click', (e)=>{ e.stopPropagation(); deleteItem(index); });
+        footer.appendChild(delBtn);
+
+        card.appendChild(footer);
+        return card;
+      }
+
+      function renderAll() {
+        cardsList.innerHTML = '';
+        if(collectionData.length === 0) {
+          const emptyDiv = document.createElement('div');
+          emptyDiv.className = 'empty-state';
+          emptyDiv.id = 'emptyState';
+          emptyDiv.innerHTML = '<span class="empty-emoji">📁</span>收藏夹空空如也';
+          cardsList.appendChild(emptyDiv);
+          return;
+        }
+        collectionData.forEach((item, idx) => {
+          cardsList.appendChild(createCard(item, idx));
+        });
+      }
+
+      function addCollection(url, name) {
+        const trimmed = url.trim();
+        if(!trimmed) { showToast('请输入链接'); return false; }
+        if(!/^https?:\/\/.+/.test(trimmed)) { showToast('链接需以 http:// 或 https:// 开头'); return false; }
+        const newItem = {
+          url: trimmed,
+          name: name.trim() || '',
+          timestamp: new Date().toISOString(),
+          mediaType: isVideoUrl(trimmed) ? 'video' : 'image'
+        };
+        collectionData.unshift(newItem);
+        saveToStorage();
+        renderAll();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        showToast('✓ 已添加');
+        return true;
+      }
+
+      function deleteItem(index) {
+        if(index<0||index>=collectionData.length) return;
+        collectionData.splice(index,1);
+        saveToStorage();
+        renderAll();
+        showToast('已删除');
+      }
+
+      function exportFile() {
+        if(collectionData.length===0) { showToast('暂无收藏可导出'); return; }
+        const dataJson = JSON.stringify(collectionData, null, 2);
+        const embeddedScript = `<script id="embedded-data" type="application/json">${dataJson}<\/script>`;
+        let html = document.documentElement.outerHTML;
+        const pattern = /<script\s+id="embedded-data"\s+type="application\/json">[\s\S]*?<\/script>/;
+        if(pattern.test(html)) {
+          html = html.replace(pattern, embeddedScript);
+        } else {
+          html = html.replace(/<script/, embeddedScript + '\n    <script');
+        }
+        if(!html.trim().startsWith('<!DOCTYPE')) html = '<!DOCTYPE html>\n' + html;
+        const blob = new Blob([html], {type:'text/html;charset=UTF-8'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '我的收藏.html';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('✓ 导出成功，可分享到其他设备');
+      }
+
+      btnAdd.addEventListener('click', ()=>{
+        if(addCollection(urlInput.value, nameInput.value)) {
+          urlInput.value = '';
+          nameInput.value = '';
+          urlInput.focus();
+        }
+      });
+      btnExport.addEventListener('click', exportFile);
+      urlInput.addEventListener('keydown', (e)=>{
+        if(e.key==='Enter'){ e.preventDefault(); if(addCollection(urlInput.value, nameInput.value)){ urlInput.value=''; nameInput.value=''; } }
+      });
+      nameInput.addEventListener('keydown', (e)=>{
+        if(e.key==='Enter'){ e.preventDefault(); if(addCollection(urlInput.value, nameInput.value)){ urlInput.value=''; nameInput.value=''; urlInput.focus(); } }
+      });
+
+      // 初始排序
+      collectionData.sort((a,b)=> new Date(b.timestamp) - new Date(a.timestamp));
+      saveToStorage();
+      renderAll();
+      if(collectionData.length===0) setTimeout(()=> urlInput.focus(), 400);
+    })();
+  </script>
+  <script id="embedded-data" type="application/json">null</script>
+</body>
+</html>
