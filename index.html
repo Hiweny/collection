@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>雪线之上 · 本地媒体收藏夹</title>
 <link rel="stylesheet" href="./style.css?v=daily-polish-1">
+<style>
+.daily{border-radius:34px;overflow:hidden;opacity:.01;transform:translateY(10px) scale(.992);transition:opacity .72s ease,transform .72s ease,box-shadow .72s ease;background-clip:padding-box;box-shadow:0 28px 86px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.10)}
+.daily.daily-ready{opacity:1;transform:none}
+.daily:after{content:'';position:absolute;inset:0;border-radius:inherit;border:1px solid rgba(246,241,232,.18);box-shadow:inset 0 0 0 1px rgba(98,144,155,.10),inset 0 -80px 120px rgba(18,23,34,.38);pointer-events:none;z-index:2}
+.daily-shade{z-index:3}
+.daily h1{letter-spacing:-.045em;line-height:1.04;text-wrap:balance}
+.daily p{display:inline-flex;margin-top:4px;padding:7px 12px;border:1px solid rgba(246,241,232,.18);border-radius:999px;background:rgba(18,23,34,.34);backdrop-filter:blur(12px);font-size:clamp(14px,1.8vw,18px);color:rgba(246,241,232,.76)}
+@media(max-width:560px){.daily{border-radius:30px}.daily h1{font-size:clamp(34px,9.5vw,44px);letter-spacing:-.05em}.daily p{font-size:14px}}
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -19,9 +28,7 @@
 (function(){
   const KEY='snowline_media_collection_v1';
   const esc=s=>String(s||'').replace(/["\\]/g,'');
-  function setReady(box){
-    requestAnimationFrame(()=>box.classList.add('daily-ready'));
-  }
+  function setReady(box){requestAnimationFrame(()=>box.classList.add('daily-ready'))}
   function pickCover(){
     const box=document.getElementById('dailyCover');
     if(!box)return;
@@ -32,15 +39,10 @@
       if(imgs.length){
         const u=imgs[Math.floor(Math.random()*imgs.length)];
         const img=new Image();
-        img.onload=function(){
-          box.style.backgroundImage='linear-gradient(145deg,rgba(98,144,155,.16),rgba(44,48,59,.38)),url("'+esc(u)+'")';
-          setReady(box);
-        };
+        img.onload=function(){box.style.backgroundImage='linear-gradient(145deg,rgba(98,144,155,.16),rgba(44,48,59,.38)),url("'+esc(u)+'")';setReady(box)};
         img.onerror=function(){setReady(box)};
         img.src=u;
-      }else{
-        setReady(box);
-      }
+      }else{setReady(box)}
     }catch(e){setReady(box)}
   }
   async function loadYiyan(){
@@ -51,9 +53,7 @@
       const s=await r.text();
       const parts=s.split('/&/');
       title.textContent=(parts[1]||parts[0]||'把喜欢的画面，留在风经过的地方。').trim();
-    }catch(e){
-      title.textContent='把喜欢的画面，留在风经过的地方。';
-    }
+    }catch(e){title.textContent='把喜欢的画面，留在风经过的地方。'}
   }
   pickCover();
   loadYiyan();
