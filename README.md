@@ -1,6 +1,6 @@
-# 雪线之上 · Media Collection
+# 雪线之上 · 本地媒体收藏夹
 
-一个用于收藏公开分享内容媒体直链的静态网页。
+一个纯静态网页，用于解析并收藏公开分享内容的图片 / 视频 URL。
 
 配色：
 
@@ -13,26 +13,31 @@
 
 ```text
 index.html
+style.css
+app.js
 data/collection.json
 README.md
 ```
 
-## 数据说明
+## 功能
 
-收藏数据位于：
+- 粘贴抖音、小红书或其他平台分享链接
+- 调用 BugPk 免费 API 解析
+- 支持直接粘贴图片 URL 收藏
+- 收藏数据保存在浏览器 `localStorage`
+- 支持导出 JSON
+- 支持导入 JSON
+- 图片直接预览
+- 视频显示封面并可播放
+- 支持搜索和类型筛选
 
-```text
-data/collection.json
-```
+## 接入的 API
 
-每个收藏项支持：
+- 抖音：`https://api.bugpk.com/api/douyin?url=`
+- 小红书：`https://api.bugpk.com/api/xhsjx?url=`
+- 聚合：`https://api.bugpk.com/api/short_videos?url=`
 
-- 图片预览：`coverUrl` 或 `mediaUrls[0]`
-- 视频预览：`videoUrl` + `coverUrl`
-- 平台筛选：`platform`
-- 类型筛选：`type`，可为 `image` / `video` / `mixed`
-
-以后把抖音、小红书、快手等公开分享链接发给雨檐，她会解析可公开访问的图片或视频直链，并追加到这个 JSON 文件。
+如果浏览器因为 CORS 无法直接请求接口，可以把链接发给雨檐，由雨檐代解析后再整理。
 
 ## 边界
 
