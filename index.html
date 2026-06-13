@@ -15,6 +15,39 @@
 <section class="hero hero-bottom"><div class="hero-main card"><span class="eyebrow">ABOVE THE SNOWLINE</span><h1>收藏风经过的链接</h1></div><aside class="side card"><div><strong id="total">0</strong><span>全部收藏</span></div><div><strong id="imgs">0</strong><span>图片</span></div><div><strong id="vids">0</strong><span>视频</span></div></aside></section>
 <p class="foot">长空青 #62909B · 琥珀 #C78444 · 普鲁士蓝 #2C303B · 燕麦色 #AB977E</p>
 </div>
+<script>
+(function(){
+  const KEY='snowline_media_collection_v1';
+  const esc=s=>String(s||'').replace(/["\\]/g,'');
+  function pickCover(){
+    const box=document.getElementById('dailyCover');
+    if(!box)return;
+    try{
+      const data=JSON.parse(localStorage.getItem(KEY)||'{}');
+      const items=Array.isArray(data.items)?data.items:[];
+      const imgs=items.flatMap(i=>Array.isArray(i.mediaUrls)&&i.mediaUrls.length?i.mediaUrls:(i.coverUrl?[i.coverUrl]:[])).filter(Boolean);
+      if(imgs.length){
+        const u=imgs[Math.floor(Math.random()*imgs.length)];
+        box.style.backgroundImage='linear-gradient(145deg,rgba(98,144,155,.18),rgba(44,48,59,.42)),url("'+esc(u)+'")';
+      }
+    }catch(e){}
+  }
+  async function loadYiyan(){
+    const text=document.getElementById('dailyText');
+    if(!text)return;
+    try{
+      const r=await fetch('https://api.bugpk.com/api/yiyan');
+      const s=await r.text();
+      const parts=s.split('/&/');
+      text.textContent=(parts[1]||parts[0]||'把喜欢的画面，留在风经过的地方。').trim();
+    }catch(e){
+      text.textContent='把喜欢的画面，留在风经过的地方。';
+    }
+  }
+  pickCover();
+  loadYiyan();
+})();
+</script>
 <script src="./app.js?v=clear-input-1"></script>
 </body>
 </html>
