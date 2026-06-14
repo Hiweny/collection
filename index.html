@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>雪线之上 · 本地媒体收藏夹</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CclipPath id='c'%3E%3Ccircle cx='32' cy='32' r='31'/%3E%3C/clipPath%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='31' fill='%232C303B'/%3E%3Cg clip-path='url(%23c)'%3E%3Cpolygon points='0,0 64,0 0,64' fill='%2325211A'/%3E%3Cpolygon points='64,0 64,64 0,64' fill='%23C78444'/%3E%3Cpolygon points='0,42 42,0 64,0 64,22 22,64 0,64' fill='%2362909B'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CclipPath id='c'%3E%3Ccircle cx='32' cy='32' r='31'/%3E%3C/clipPath%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='31' fill='%232C303B'/%3E%3Cg clip-path='url(%23c)'%3E%3Cpolygon points='0,0 64,0 0,64' fill='%2325211A'/%3E%3Cpolygon points='64,0 64,64 0,64' fill='%23C78444'/%3E%3Cpolygon points='0,42 42,0 64,0 64,22 22,64 0,64' fill='%2362909B'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="./style.css?v=daily-polish-1">
 <style>
 .daily{border-radius:34px;overflow:hidden;opacity:.01;transform:translateY(10px) scale(.992);transition:opacity .72s ease,transform .72s ease,box-shadow .72s ease;background-clip:padding-box;box-shadow:0 28px 86px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.10)}
@@ -12,7 +14,13 @@
 .daily-shade{z-index:3}
 .daily h1{letter-spacing:-.045em;line-height:1.04;text-wrap:balance}
 .daily p{display:inline-flex;margin-top:4px;padding:7px 12px;border:1px solid rgba(246,241,232,.18);border-radius:999px;background:rgba(18,23,34,.34);backdrop-filter:blur(12px);font-size:clamp(14px,1.8vw,18px);color:rgba(246,241,232,.76)}
-@media(max-width:560px){.daily{border-radius:30px}.daily h1{font-size:clamp(34px,9.5vw,44px);letter-spacing:-.05em}.daily p{font-size:14px}}
+.scroll-rail{position:fixed;z-index:50;right:6px;top:92px;bottom:22px;width:18px;opacity:0;pointer-events:none;transition:opacity .22s ease}
+.scroll-rail:before{content:'';position:absolute;top:0;bottom:0;left:8px;width:2px;border-radius:99px;background:rgba(246,241,232,.10)}
+.scroll-thumb{position:absolute;right:2px;top:0;width:8px;min-height:48px;border-radius:99px;background:linear-gradient(180deg,rgba(246,241,232,.72),rgba(98,144,155,.72));box-shadow:0 8px 24px rgba(0,0,0,.34),0 0 0 1px rgba(246,241,232,.16);cursor:grab;touch-action:none}
+.scroll-thumb:active{cursor:grabbing;background:linear-gradient(180deg,rgba(255,255,255,.90),rgba(199,132,68,.76))}
+body.scroll-fast .scroll-rail,.scroll-rail.dragging{opacity:1;pointer-events:auto}
+@media(hover:hover){.scroll-rail:hover{opacity:1;pointer-events:auto}}
+@media(max-width:560px){.daily{border-radius:30px}.daily h1{font-size:clamp(34px,9.5vw,44px);letter-spacing:-.05em}.daily p{font-size:14px}.scroll-rail{right:2px;top:82px;bottom:16px;width:14px}.scroll-thumb{right:1px;width:6px}}
 </style>
 </head>
 <body>
@@ -24,6 +32,7 @@
 <section class="hero hero-bottom"><div class="hero-main card"><span class="eyebrow">ABOVE THE SNOWLINE</span><h1>收藏风经过的链接</h1></div><aside class="side card"><div><strong id="total">0</strong><span>全部收藏</span></div><div><strong id="imgs">0</strong><span>图片</span></div><div><strong id="vids">0</strong><span>视频</span></div></aside></section>
 <p class="foot">长空青 #62909B · 琥珀 #C78444 · 普鲁士蓝 #2C303B · 燕麦色 #AB977E</p>
 </div>
+<div class="scroll-rail" id="scrollRail" aria-hidden="true"><div class="scroll-thumb" id="scrollThumb"></div></div>
 <script>
 (function(){
   const KEY='snowline_media_collection_v1';
@@ -57,6 +66,50 @@
   }
   pickCover();
   loadYiyan();
+})();
+(function(){
+  const rail=document.getElementById('scrollRail');
+  const thumb=document.getElementById('scrollThumb');
+  if(!rail||!thumb)return;
+  let lastY=window.scrollY,lastT=performance.now(),hideTimer=0,drag=false,startY=0,startScroll=0;
+  function maxScroll(){return Math.max(1,document.documentElement.scrollHeight-window.innerHeight)}
+  function update(){
+    const railH=rail.clientHeight;
+    const ratio=Math.min(1,window.innerHeight/document.documentElement.scrollHeight);
+    const h=Math.max(48,Math.round(railH*ratio));
+    const y=Math.round((railH-h)*(window.scrollY/maxScroll()));
+    thumb.style.height=h+'px';
+    thumb.style.transform='translateY('+y+'px)';
+    rail.style.display=maxScroll()>2?'block':'none';
+  }
+  function show(force){
+    document.body.classList.add('scroll-fast');
+    clearTimeout(hideTimer);
+    if(!force)hideTimer=setTimeout(()=>document.body.classList.remove('scroll-fast'),760);
+  }
+  function onScroll(){
+    const now=performance.now(),y=window.scrollY;
+    const speed=Math.abs(y-lastY)/Math.max(16,now-lastT);
+    update();
+    if(speed>.55||drag)show(drag);
+    lastY=y;lastT=now;
+  }
+  thumb.addEventListener('pointerdown',e=>{
+    drag=true;startY=e.clientY;startScroll=window.scrollY;rail.classList.add('dragging');thumb.setPointerCapture(e.pointerId);show(true);e.preventDefault();
+  });
+  thumb.addEventListener('pointermove',e=>{
+    if(!drag)return;
+    const railH=rail.clientHeight,thumbH=thumb.offsetHeight;
+    const delta=e.clientY-startY;
+    const scrollDelta=delta/Math.max(1,railH-thumbH)*maxScroll();
+    window.scrollTo({top:startScroll+scrollDelta,behavior:'auto'});
+  });
+  function endDrag(){drag=false;rail.classList.remove('dragging');show(false)}
+  thumb.addEventListener('pointerup',endDrag);
+  thumb.addEventListener('pointercancel',endDrag);
+  window.addEventListener('scroll',onScroll,{passive:true});
+  window.addEventListener('resize',update,{passive:true});
+  update();
 })();
 </script>
 <script src="./app.js?v=clear-input-1"></script>
