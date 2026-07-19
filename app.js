@@ -368,18 +368,4 @@ $('clearBtn').onclick=()=>{
   }
 };
 
-// ---- Back to top: show only when scrolling UP ----
-(function(){
-  let lastScrollY=window.scrollY;
-  const backtop=document.getElementById('backtop');
-  if(!backtop)return;
-  window.addEventListener('scroll',()=>{
-    const y=window.scrollY;
-    if(y<200){backtop.classList.remove('show');}
-    else if(y<lastScrollY){backtop.classList.add('show');}
-    else{backtop.classList.remove('show');}
-    lastScrollY=y;
-  },{passive:true});
-})();
-
 load();
