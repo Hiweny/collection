@@ -22,12 +22,6 @@ function fetchWithTimeout(url,ms){
   return fetch(url,{signal:ctrl.signal}).finally(()=>clearTimeout(timer));
 }
 
-// ---- randHex ----
-function randHex(){
-  const colors=['#FF6B6B','#4ECDC4','#FFD166','#A78BFA','#6BCB77','#FF9F9F','#88D8B0','#FFAA5C','#9ADCFF','#CDB4DB','#B5E48C','#F4A261','#90E0EF','#E0BBE4','#99D98C','#F4D03F'];
-  return colors[Math.floor(Math.random()*colors.length)];
-}
-
 // ---- save / load ----
 function save(){
   const record={};
@@ -45,7 +39,6 @@ function load(){
   items.forEach(it=>{
     const n=(it.mediaUrls||[]).length;
     if(n>1){it._idx=((record[it.id]||0)+1)%n;record[it.id]=it._idx}
-    if(!it.color) it.color=randHex();
   });
   save();render();
 }
@@ -67,20 +60,19 @@ function parseUrl(url){
   return null;
 }
 
-// ---- norm (add color field) ----
+// ---- norm (from randomness) ----
 function norm(d,src,p){
   let x=d.data||d,imgs=x.images||x.imgurl||x.pics||[],video=x.url||x.video||x.video_url||'';
   if(x.live_photo&&x.live_photo.length){imgs=x.live_photo.map(i=>i.image).filter(Boolean);if(!video)video=x.live_photo[0].video||''}
   let type=imgs.length?'image':(video?'video':'media');
-  return{id:p+'_'+Date.now(),platform:p,type,title:x.title||x.desc||'Untitled',author:(x.author&&x.author.name)||x.author||'',sourceUrl:src,resolvedUrl:src,coverUrl:x.cover||x.coverUrl||imgs[0]||'',mediaUrls:imgs,videoUrl:video,tags:[p],createdAt:new Date().toISOString(),note:'',color:randHex()};
+  return{id:p+'_'+Date.now(),platform:p,type,title:x.title||x.desc||'Untitled',author:(x.author&&x.author.name)||x.author||'',sourceUrl:src,resolvedUrl:src,coverUrl:x.cover||x.coverUrl||imgs[0]||'',mediaUrls:imgs,videoUrl:video,tags:[p],createdAt:new Date().toISOString(),note:''};
 }
 
 function add(it){
-  if(!it.color) it.color=randHex();
   items.unshift(it);save();render();
 }
 
-// ---- tryMultiImage (existing, enhanced) ----
+// ---- tryMultiImage (existing) ----
 function tryMultiImage(raw){
   const lines=raw.split(/\n+/).map(s=>s.trim()).filter(Boolean);
   if(lines.length<2)return null;
@@ -88,7 +80,7 @@ function tryMultiImage(raw){
   if(urls.length<2)return null;
   const titleLine=lines[0];
   const title=(titleLine&&!isImageUrl(titleLine))?titleLine:('手动图集 '+new Date().toLocaleDateString('zh-CN'));
-  return{id:'album_'+Date.now(),platform:'manual-album',type:'image',title:title,sourceUrl:urls[0],resolvedUrl:urls[0],coverUrl:urls[0],mediaUrls:urls,videoUrl:'',tags:['album'],createdAt:new Date().toISOString(),note:'',color:randHex()};
+  return{id:'album_'+Date.now(),platform:'manual-album',type:'image',title:title,sourceUrl:urls[0],resolvedUrl:urls[0],coverUrl:urls[0],mediaUrls:urls,videoUrl:'',tags:['album'],createdAt:new Date().toISOString(),note:''};
 }
 
 function addFromMulti(raw){
@@ -179,7 +171,7 @@ async function parseAdd(){
 
   // 直接图片 URL
   if(mode==='direct-image'||/\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(src)){
-    add({id:'img_'+Date.now(),platform:'direct',type:'image',title:'图片直链',sourceUrl:src,resolvedUrl:src,coverUrl:src,mediaUrls:[src],videoUrl:'',tags:['direct'],createdAt:new Date().toISOString(),note:'',color:randHex()});
+    add({id:'img_'+Date.now(),platform:'direct',type:'image',title:'图片直链',sourceUrl:src,resolvedUrl:src,coverUrl:src,mediaUrls:[src],videoUrl:'',tags:['direct'],createdAt:new Date().toISOString(),note:''});
     $('source').value='';
     showToast('已添加图片直链 ✓');
     return;
@@ -211,7 +203,7 @@ async function parseAdd(){
 
   if(mode==='douyin'){
     status.textContent='抖音解析中...';
-    let item={id:'douyin_'+Date.now(),platform:'douyin',type:'video',title:'',author:'',sourceUrl:src,resolvedUrl:src,coverUrl:'',mediaUrls:[],videoUrl:'',tags:['douyin'],createdAt:new Date().toISOString(),note:'',color:randHex()};
+    let item={id:'douyin_'+Date.now(),platform:'douyin',type:'video',title:'',author:'',sourceUrl:src,resolvedUrl:src,coverUrl:'',mediaUrls:[],videoUrl:'',tags:['douyin'],createdAt:new Date().toISOString(),note:''};
     let ok=await tryDouyinParse(item,src);
     if(ok){
       if(item.videoUrl&&(item.videoUrl.includes('/api/')||item.videoUrl.includes('.php'))){
@@ -226,7 +218,7 @@ async function parseAdd(){
 
   if(mode==='xhs'){
     status.textContent='小红书解析中...';
-    let item={id:'xhs_'+Date.now(),platform:'xhs',type:'image',title:'',author:'',sourceUrl:src,resolvedUrl:src,coverUrl:'',mediaUrls:[],videoUrl:'',tags:['xhs'],createdAt:new Date().toISOString(),note:'',color:randHex()};
+    let item={id:'xhs_'+Date.now(),platform:'xhs',type:'image',title:'',author:'',sourceUrl:src,resolvedUrl:src,coverUrl:'',mediaUrls:[],videoUrl:'',tags:['xhs'],createdAt:new Date().toISOString(),note:''};
     let ok=await tryXhsParse(item,src);
     if(ok){
       add(item);$('source').value='';status.textContent='';
@@ -306,12 +298,11 @@ function flip(id,step){
   render();
 }
 
-// ---- card (improved) ----
+// ---- card ----
 function card(it){
   let media=mediaBlock(it);
-  let bar='<div class="color-bar" style="background:'+esc(it.color||'#4ECDC4')+'"></div>';
   let links=(it.mediaUrls||[]).slice(0,5).map((u,i)=>'<a class="small" target="_blank" href="'+esc(u)+'">图'+(i+1)+'</a>').join('')+(it.videoUrl?'<a class="small" target="_blank" href="'+esc(it.videoUrl)+'">视频</a>':'');
-  return '<article class="item">'+bar+'<div class="media">'+media+'</div><div class="body"><div class="meta"><span class="tag">'+esc(it.platform)+'</span><span class="type">'+esc(it.type)+'</span></div><p class="title">'+esc(it.title)+'</p><a class="url" target="_blank" href="'+esc(it.sourceUrl)+'">'+esc(it.sourceUrl)+'</a><div class="links">'+links+'<button class="small" onclick="del(\''+it.id+'\')">删除</button></div></div></article>';
+  return '<article class="item"><div class="media">'+media+'</div><div class="body"><div class="meta"><span class="tag">'+esc(it.platform)+'</span><span class="type">'+esc(it.type)+'</span></div><p class="title">'+esc(it.title)+'</p><a class="url" target="_blank" href="'+esc(it.sourceUrl)+'">'+esc(it.sourceUrl)+'</a><div class="links">'+links+'<button class="small" onclick="del(\''+it.id+'\')">删除</button></div></div></article>';
 }
 
 // ---- render ----
@@ -338,15 +329,15 @@ $('manualBtn').onclick=()=>{
   if(addFromMulti(raw))return;
   let u=firstUrl(raw);
   if(u){
-    add({id:'manual_'+Date.now(),platform:'manual',type:'image',title:'手动收藏',sourceUrl:u,resolvedUrl:u,coverUrl:u,mediaUrls:[u],videoUrl:'',tags:['manual'],createdAt:new Date().toISOString(),note:'',color:randHex()});
+    add({id:'manual_'+Date.now(),platform:'manual',type:'image',title:'手动收藏',sourceUrl:u,resolvedUrl:u,coverUrl:u,mediaUrls:[u],videoUrl:'',tags:['manual'],createdAt:new Date().toISOString(),note:''});
     $('source').value='';
     showToast('已添加 ✓');
   }
 };
 $('exportBtn').onclick=()=>{
-  // 导出格式与 randomness 兼容
+  // 导出格式与 randomness 兼容：纯数组
   let a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([JSON.stringify({updatedAt:new Date().toISOString(),items},null,2)],{type:'application/json'}));
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(items,null,2)],{type:'application/json'}));
   a.download='snowline-collection.json';
   a.click();
 };
@@ -355,9 +346,9 @@ $('importFile').onchange=e=>{
   if(!f)return;
   f.text().then(t=>{
     let d=JSON.parse(t);
-    let incoming=d.items||[];
-    // 兼容旧格式：没有 color 的自动补上
-    incoming.forEach(it=>{if(!it.color)it.color=randHex();});
+    // 兼容两种格式：纯数组 [...] 和 {items:[...]}
+    let incoming=Array.isArray(d)?d:(d.items||[]);
+    if(!incoming.length){showToast('没有可导入的数据');return;}
     items=[...incoming,...items];
     save();render();
     showToast('已导入 '+incoming.length+' 条收藏 ✓');
@@ -369,5 +360,19 @@ $('clearBtn').onclick=()=>{
     showToast('已清空');
   }
 };
+
+// ---- Back to top: show only when scrolling UP ----
+(function(){
+  let lastScrollY=window.scrollY;
+  const backtop=document.getElementById('backtop');
+  if(!backtop)return;
+  window.addEventListener('scroll',()=>{
+    const y=window.scrollY;
+    if(y<200){backtop.classList.remove('show');}
+    else if(y<lastScrollY){backtop.classList.add('show');}
+    else{backtop.classList.remove('show');}
+    lastScrollY=y;
+  },{passive:true});
+})();
 
 load();
