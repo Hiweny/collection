@@ -1,12 +1,12 @@
 const CACHE = 'snowline-v2';
 const SHELL = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/app.js',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  './',
+  './index.html',
+  './style.css',
+  './app.js',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 // Install — pre-cache shell
@@ -31,7 +31,7 @@ self.addEventListener('fetch', e => {
 
   // API calls — network first, no cache
   if (/api\./.test(url.host) || /api\//.test(url.pathname)) {
-    return; // let browser handle normally
+    return;
   }
 
   // Image / video — cache first, fallback to network
