@@ -1,0 +1,26 @@
+{
+  "name": "雪线之上",
+  "short_name": "雪线之上",
+  "description": "本地媒体收藏夹 — 收藏风经过的链接",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#2C303B",
+  "theme_color": "#2C303B",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

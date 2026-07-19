@@ -6,7 +6,12 @@
 <title>雪线之上 · 本地媒体收藏夹</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CclipPath id='c'%3E%3Ccircle cx='32' cy='32' r='31'/%3E%3C/clipPath%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='31' fill='%232C303B'/%3E%3Cg clip-path='url(%23c)'%3E%3Cpolygon points='0,0 64,0 0,64' fill='%2325211A'/%3E%3Cpolygon points='64,0 64,64 0,64' fill='%23C78444'/%3E%3Cpolygon points='0,42 42,0 64,0 64,22 22,64 0,64' fill='%2362909B'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CclipPath id='c'%3E%3Ccircle cx='32' cy='32' r='31'/%3E%3C/clipPath%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='31' fill='%232C303B'/%3E%3Cg clip-path='url(%23c)'%3E%3Cpolygon points='0,0 64,0 0,64' fill='%2325211A'/%3E%3Cpolygon points='64,0 64,64 0,64' fill='%23C78444'/%3E%3Cpolygon points='0,42 42,0 64,0 64,22 22,64 0,64' fill='%2362909B'/%3E%3C/g%3E%3C/svg%3E">
-<link rel="stylesheet" href="./style.css?v=liquid-glass">
+<link rel="manifest" href="./manifest.json?v=pwa-1">
+<meta name="theme-color" content="#2C303B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="雪线之上">
+<link rel="stylesheet" href="./style.css?v=pwa-1">
 <style>
 .daily{border-radius:34px;overflow:hidden;opacity:.01;transform:translateY(10px) scale(.992);transition:opacity .72s ease,transform .72s ease,box-shadow .72s ease;background-clip:padding-box}
 .daily.daily-ready{opacity:1;transform:none}
@@ -20,9 +25,18 @@
 body.scroll-fast .scroll-rail,.scroll-rail.dragging{opacity:1;pointer-events:auto}
 @media(hover:hover){.scroll-rail:hover{opacity:1;pointer-events:auto}}
 @media(max-width:560px){.daily{border-radius:30px}.daily h1{font-size:clamp(34px,9.5vw,44px);letter-spacing:-.05em}.daily p{font-size:14px}.scroll-rail{right:2px;top:82px;bottom:16px;width:14px}.scroll-thumb{right:1px;width:6px}}
+/* ---- Splash Screen ---- */
+#splash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#2C303B;transition:opacity .5s ease,visibility .5s ease}
+#splash.splash-hide{opacity:0;visibility:hidden;pointer-events:none}
+#splash .splash-bg{position:absolute;inset:0;background-size:cover;background-position:center;opacity:.45;transition:opacity .8s ease}
+#splash .splash-logo{width:88px;height:88px;border-radius:22px;background:linear-gradient(135deg,var(--snow) 0 31%,var(--sky) 31% 67%,var(--amber) 67%);box-shadow:0 24px 64px rgba(0,0,0,.4);margin-bottom:24px;z-index:1;animation:splashPulse 1.2s ease-in-out infinite}
+#splash .splash-title{font-size:28px;font-weight:850;letter-spacing:.06em;color:var(--snow);z-index:1;text-shadow:0 2px 12px rgba(0,0,0,.3)}
+#splash .splash-sub{font-size:14px;color:rgba(246,241,232,.56);margin-top:8px;z-index:1}
+@keyframes splashPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
 </style>
 </head>
 <body>
+<div id="splash"><div class="splash-bg" id="splashBg"></div><div class="splash-logo"></div><div class="splash-title">雪线之上</div><div class="splash-sub">收藏风经过的链接</div></div>
 <div class="wrap">
 <header class="top"><div class="brand"><div class="logo"></div><div><b>雪线之上</b><span>Local Media Collection</span></div></div><div class="top-actions"><button data-filter="all" class="pill active">全部</button><button data-filter="image" class="pill">图片</button><button data-filter="video" class="pill">视频</button></div></header>
 <section class="daily card" id="dailyCover"><div class="daily-shade"><span class="eyebrow">TODAY'S GLIMPSE</span><h1 id="dailyTitle">正在等待一句合适的话。</h1><p id="dailyText">从收藏里，捡一束光</p></div></section>
@@ -112,6 +126,33 @@ body.scroll-fast .scroll-rail,.scroll-rail.dragging{opacity:1;pointer-events:aut
   update();
 })();
 </script>
-<script src="./app.js?v=liquid-glass"></script>
+<script src="./app.js?v=pwa-1"></script>
+<script>
+// ---- PWA: Service Worker ----
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js?v=pwa-1').catch(()=>{});
+}
+// ---- Splash: random image from collection ----
+(function(){
+  var splash=document.getElementById('splash');
+  var splashBg=document.getElementById('splashBg');
+  var KEY='snowline_media_collection_v2';
+  try{
+    var stored=localStorage.getItem(KEY)||localStorage.getItem('snowline_media_collection_v1');
+    var data=JSON.parse(stored||'{}');
+    var items=Array.isArray(data.items)?data.items:[];
+    var imgs=items.flatMap(function(i){return Array.isArray(i.mediaUrls)&&i.mediaUrls.length?i.mediaUrls:(i.coverUrl?[i.coverUrl]:[])}).filter(Boolean);
+    if(imgs.length){
+      var u=imgs[Math.floor(Math.random()*imgs.length)];
+      var img=new Image();
+      img.onload=function(){splashBg.style.backgroundImage='url("'+u.replace(/"/g,'')+'")'};
+      img.src=u;
+    }
+  }catch(e){}
+  window.addEventListener('load',function(){
+    setTimeout(function(){splash.classList.add('splash-hide')},600);
+  });
+})();
+</script>
 </body>
 </html>
