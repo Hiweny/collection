@@ -76,7 +76,7 @@ body.scroll-fast .scroll-rail,.scroll-rail.dragging{opacity:1;pointer-events:aut
       const s=await r.text();
       const parts=s.split('/&/');
       title.textContent=(parts[1]||parts[0]||'把喜欢的画面，留在风经过的地方。').trim();
-    }catch(e){title.textContent='把喜欢的画面，留在风经过的地方。'}
+    }catch(e){title.textContent='把喜欢的画面，留在风经过的地方。';}
   }
   pickCover();
   loadYiyan();
@@ -137,6 +137,12 @@ if('serviceWorker' in navigator){
   var splash=document.getElementById('splash');
   var splashBg=document.getElementById('splashBg');
   var KEY='snowline_media_collection_v2';
+  var hidden=false;
+  function hideSplash(){
+    if(hidden)return;
+    hidden=true;
+    splash.classList.add('splash-hide');
+  }
   try{
     var stored=localStorage.getItem(KEY)||localStorage.getItem('snowline_media_collection_v1');
     var data=JSON.parse(stored||'{}');
@@ -149,9 +155,16 @@ if('serviceWorker' in navigator){
       img.src=u;
     }
   }catch(e){}
+  // 主逻辑：window load 事件触发后延迟消失
   window.addEventListener('load',function(){
-    setTimeout(function(){splash.classList.add('splash-hide')},600);
+    setTimeout(hideSplash,600);
   });
+  // 兜底1：如果 DOM 已经加载完了（某些 WebView load 永远不会触发）
+  if(document.readyState==='complete'){
+    setTimeout(hideSplash,600);
+  }
+  // 兜底2：最多等 5 秒，强制消失
+  setTimeout(hideSplash,5000);
 })();
 </script>
 </body>
