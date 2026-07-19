@@ -275,7 +275,7 @@ function mediaBlock(it){
   let imgs=it.mediaUrls||[],idx=it._idx||0,cover=it.coverUrl||imgs[0]||'';
   if(imgs.length>1){
     let u=imgs[idx%imgs.length];
-    return '<div class="gallery"><div class="stack s2"></div><div class="stack s1"></div><img class="page" src="'+esc(u)+'" referrerpolicy="no-referrer" onerror="favImgFallback(this)" data-fallback="'+esc(u)+'"><button class="flip prev" onclick="flip(\''+it.id+'\',-1)">‹</button><button class="flip next" onclick="flip(\''+it.id+'\',1)">›</button><span class="count">'+(idx+1)+'/'+imgs.length+'</span></div>';
+    return '<div class="gallery" id="gallery-'+it.id+'"><div class="stack s2"></div><div class="stack s1"></div><img class="page" src="'+esc(u)+'" referrerpolicy="no-referrer" onerror="favImgFallback(this)" data-fallback="'+esc(u)+'"><button class="flip prev" onclick="flip(\''+it.id+'\',-1)">‹</button><button class="flip next" onclick="flip(\''+it.id+'\',1)">›</button><span class="count">'+(idx+1)+'/'+imgs.length+'</span></div>';
   }
   if(it.videoUrl){
     let html='<video src="'+esc(it.videoUrl)+'" poster="'+esc(cover)+'" controls playsinline></video>';
@@ -288,14 +288,21 @@ function mediaBlock(it){
   return cover?'<img src="'+esc(cover)+'" referrerpolicy="no-referrer" onerror="favImgFallback(this)" data-fallback="'+esc(cover)+'">':'<span>NO PREVIEW</span>';
 }
 
-// ---- flip ----
+// ---- flip (局部更新，不重建整个 grid) ----
 function flip(id,step){
   let it=items.find(x=>x.id===id);
   if(!it)return;
   let n=(it.mediaUrls||[]).length;
   if(n<2)return;
   it._idx=((it._idx||0)+step+n)%n;
-  render();
+  save();
+  // 只更新当前图集的图片和计数器，不触发全量 render
+  let gallery=document.getElementById('gallery-'+id);
+  if(!gallery)return;
+  let img=gallery.querySelector('.page');
+  let count=gallery.querySelector('.count');
+  if(img){img.src=it.mediaUrls[it._idx]}
+  if(count){count.textContent=(it._idx+1)+'/'+n}
 }
 
 // ---- card ----
