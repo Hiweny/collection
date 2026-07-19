@@ -35,14 +35,15 @@ body.scroll-fast .scroll-rail,.scroll-rail.dragging{opacity:1;pointer-events:aut
 <div class="scroll-rail" id="scrollRail" aria-hidden="true"><div class="scroll-thumb" id="scrollThumb"></div></div>
 <script>
 (function(){
-  const KEY='snowline_media_collection_v1';
+  const KEY='snowline_media_collection_v2';
   const esc=s=>String(s||'').replace(/["\\]/g,'');
   function setReady(box){requestAnimationFrame(()=>box.classList.add('daily-ready'))}
   function pickCover(){
     const box=document.getElementById('dailyCover');
     if(!box)return;
     try{
-      const data=JSON.parse(localStorage.getItem(KEY)||'{}');
+      let stored=localStorage.getItem(KEY)||localStorage.getItem('snowline_media_collection_v1');
+      const data=JSON.parse(stored||'{}');
       const items=Array.isArray(data.items)?data.items:[];
       const imgs=items.flatMap(i=>Array.isArray(i.mediaUrls)&&i.mediaUrls.length?i.mediaUrls:(i.coverUrl?[i.coverUrl]:[])).filter(Boolean);
       if(imgs.length){
