@@ -1,18 +1,11 @@
 :root{--sky:#62909B;--amber:#C78444;--blue:#2C303B;--oat:#AB977E;--snow:#F6F1E8;--muted:rgba(246,241,232,.68);--line:rgba(246,241,232,.16);font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Microsoft YaHei',sans-serif}*{box-sizing:border-box}body{margin:0;min-height:100vh;color:var(--snow);background:radial-gradient(circle at 8% 4%,rgba(98,144,155,.65),transparent 34rem),radial-gradient(circle at 88% 12%,rgba(199,132,68,.28),transparent 26rem),linear-gradient(145deg,#1b1f29,var(--blue) 52%,#121722)}a{color:inherit}.wrap{width:min(1180px,calc(100% - 28px));margin:auto;padding:22px 0 54px}
 
-/* ===== Liquid Glass Core ===== */
+/* ===== Glass Base (no backdrop-filter on shared base — perf) ===== */
 .card,.top,.item{
   border:1px solid rgba(255,255,255,.12);
   background:rgba(246,241,232,.06);
-  backdrop-filter:blur(24px) saturate(130%);
-  -webkit-backdrop-filter:blur(24px) saturate(130%);
-  box-shadow:
-    0 8px 32px rgba(0,0,0,.18),
-    0 0 0 1px rgba(255,255,255,.04) inset,
-    0 1px 0 rgba(255,255,255,.08) inset;
-  position:relative;
-  transform:translateZ(0);
-  -webkit-transform:translateZ(0)
+  box-shadow:0 8px 32px rgba(0,0,0,.18),0 0 0 1px rgba(255,255,255,.04) inset,0 1px 0 rgba(255,255,255,.08) inset;
+  position:relative
 }
 /* glass edge highlight ring */
 .card:before,.top:before,.item:before{
@@ -21,11 +14,10 @@
   background:linear-gradient(135deg,rgba(255,255,255,.14),transparent 40%,transparent 60%,rgba(255,255,255,.06)) border-box;
   -webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);
   mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);
-  -webkit-mask-composite:xor;
-  mask-composite:exclude;
+  -webkit-mask-composite:xor;mask-composite:exclude;
   pointer-events:none;z-index:2
 }
-/* mouse light — set via JS */
+/* mouse light — only on hover */
 .card:after,.item:after{
   content:'';position:absolute;inset:0;border-radius:inherit;
   background:radial-gradient(circle at var(--mx,50%) var(--my,50%),rgba(255,255,255,.12),transparent 60%);
@@ -33,11 +25,13 @@
 }
 .card:hover:after,.item:hover:after{opacity:1}
 
-.top{
-  position:sticky;top:12px;z-index:5;
-  display:flex;justify-content:space-between;align-items:center;gap:12px;
-  padding:12px 14px;border-radius:999px
-}
+/* ===== Glass blur — only on single-occurrence elements (not .item grids) ===== */
+.card{backdrop-filter:blur(18px) saturate(120%);-webkit-backdrop-filter:blur(18px) saturate(120%)}
+.top{backdrop-filter:blur(18px) saturate(120%);-webkit-backdrop-filter:blur(18px) saturate(120%)}
+/* .item gets a gradient bg instead of blur — much cheaper */
+.item{background:linear-gradient(145deg,rgba(246,241,232,.09),rgba(44,48,59,.28))}
+
+.top{position:sticky;top:12px;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border-radius:999px}
 .brand{display:flex;align-items:center;gap:12px}
 .logo{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--snow) 0 31%,var(--sky) 31% 67%,var(--amber) 67%)}
 .brand b{display:block;letter-spacing:.08em}
@@ -46,14 +40,9 @@
 .pill,.btn{
   border:1px solid rgba(255,255,255,.14);
   background:rgba(255,255,255,.06);
-  backdrop-filter:blur(12px) saturate(120%);
-  -webkit-backdrop-filter:blur(12px) saturate(120%);
   color:var(--snow);border-radius:999px;padding:10px 14px;cursor:pointer;text-decoration:none
 }
-.pill:hover,.pill.active,.btn.primary{
-  border-color:rgba(199,132,68,.55);
-  background:rgba(199,132,68,.25)
-}
+.pill:hover,.pill.active,.btn.primary{border-color:rgba(199,132,68,.55);background:rgba(199,132,68,.25)}
 .danger{color:#ffd7d7}
 .hero{display:grid;grid-template-columns:1fr .8fr;gap:18px;margin:48px 0 22px}
 .card{border-radius:28px}
@@ -62,24 +51,17 @@
 h1{margin:18px 0;font-size:clamp(42px,8vw,78px);line-height:.95;letter-spacing:-.075em}
 .hero p,.hint{color:var(--muted);line-height:1.8}
 .side{padding:22px;display:grid;gap:12px}
-.side div{
-  border:1px solid rgba(255,255,255,.1);
-  border-radius:20px;
-  background:rgba(255,255,255,.04);
-  backdrop-filter:blur(16px) saturate(120%);
-  -webkit-backdrop-filter:blur(16px) saturate(120%);
-  padding:16px
-}
+.side div{border:1px solid rgba(255,255,255,.1);border-radius:20px;background:rgba(255,255,255,.04);padding:16px}
 .side strong{display:block;font-size:32px}
 .side span{color:var(--muted);font-size:13px}
 
-/* ===== Parser (liquid glass) ===== */
+/* ===== Parser ===== */
 .parser{
   position:relative;padding:22px;margin:18px 0 22px;border-radius:30px;
   border:1px solid rgba(255,255,255,.12);
-  background:rgba(246,241,232,.05);
-  backdrop-filter:blur(28px) saturate(140%);
-  -webkit-backdrop-filter:blur(28px) saturate(140%);
+  background:rgba(246,241,232,.08);
+  backdrop-filter:blur(24px) saturate(130%);
+  -webkit-backdrop-filter:blur(24px) saturate(130%);
   box-shadow:0 12px 48px rgba(0,0,0,.22),0 0 0 1px rgba(255,255,255,.04) inset,0 1px 0 rgba(255,255,255,.08) inset
 }
 .parser:before{
@@ -93,9 +75,7 @@ h1{margin:18px 0;font-size:clamp(42px,8vw,78px);line-height:.95;letter-spacing:-
 .parser h2{position:relative;font-size:20px;letter-spacing:.03em;z-index:3}
 textarea,.input,select{
   width:100%;border:1px solid rgba(255,255,255,.14);
-  background:rgba(255,255,255,.06);
-  backdrop-filter:blur(10px) saturate(120%);
-  -webkit-backdrop-filter:blur(10px) saturate(120%);
+  background:rgba(255,255,255,.08);
   color:var(--snow);padding:13px 14px;border-radius:16px;outline:none
 }
 select option{background:var(--blue)}
@@ -104,12 +84,8 @@ textarea{min-height:92px;resize:vertical}
 .toolbar{display:grid;grid-template-columns:1fr auto;gap:10px;margin:22px 0}
 .file input{display:none}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.item{border-radius:24px;overflow:hidden;background:rgba(246,241,232,.04);transition:transform .3s ease,box-shadow .3s ease}
-.item:hover{
-  transform:translateY(-2px) translateZ(0);
-  -webkit-transform:translateY(-2px) translateZ(0);
-  box-shadow:0 16px 48px rgba(0,0,0,.28),0 0 0 1px rgba(255,255,255,.06) inset,0 1px 0 rgba(255,255,255,.1) inset
-}
+.item{border-radius:24px;overflow:hidden;transition:transform .3s ease,box-shadow .3s ease}
+.item:hover{transform:translateY(-2px);box-shadow:0 16px 48px rgba(0,0,0,.28),0 0 0 1px rgba(255,255,255,.06) inset,0 1px 0 rgba(255,255,255,.1) inset}
 .media{
   background:linear-gradient(145deg,rgba(98,144,155,.3),rgba(171,151,126,.12));
   display:grid;place-items:center;overflow:hidden;position:relative
@@ -117,27 +93,16 @@ textarea{min-height:92px;resize:vertical}
 .media img,.media video{width:100%;height:auto;max-height:70vh;object-fit:contain}
 .body{padding:15px;position:relative;z-index:1}
 .meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:9px}
-.tag{
-  border:1px solid rgba(98,144,155,.4);
-  background:rgba(98,144,155,.15);
-  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-  border-radius:999px;padding:5px 9px;font-size:12px
-}
+.tag{border:1px solid rgba(98,144,155,.4);background:rgba(98,144,155,.2);border-radius:999px;padding:5px 9px;font-size:12px}
 .type{color:var(--oat);font-size:12px}
 .title{font-weight:850;line-height:1.4;margin:0 0 9px}
 .url{display:block;color:rgba(246,241,232,.56);font-family:ui-monospace,monospace;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}
-.small{
-  padding:8px 10px;border-radius:999px;
-  border:1px solid rgba(255,255,255,.12);
-  background:rgba(255,255,255,.05);
-  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-  font-size:12px;text-decoration:none
-}
+.small{padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);font-size:12px;text-decoration:none}
 .empty{padding:42px;text-align:center;color:var(--muted)}
 .hidden{display:none!important}
 .foot{text-align:center;color:rgba(246,241,232,.48);font-size:13px;margin-top:34px}
 
-/* ===== Gallery (liquid glass stack) ===== */
+/* ===== Gallery ===== */
 .gallery{position:relative;width:100%;height:100%;padding:12px}
 .gallery .page{
   position:relative;z-index:3;width:100%;height:100%;object-fit:cover;
@@ -146,9 +111,7 @@ textarea{min-height:92px;resize:vertical}
 }
 .stack{
   position:absolute;inset:20px 14px 8px;border-radius:18px;
-  background:rgba(255,255,255,.04);
-  backdrop-filter:blur(20px) saturate(130%);
-  -webkit-backdrop-filter:blur(20px) saturate(130%);
+  background:rgba(255,255,255,.05);
   border:1px solid rgba(255,255,255,.1);
   box-shadow:0 12px 30px rgba(0,0,0,.25)
 }
@@ -159,7 +122,6 @@ textarea{min-height:92px;resize:vertical}
   width:34px;height:44px;border-radius:999px;
   border:1px solid rgba(255,255,255,.18);
   background:rgba(44,48,59,.5);
-  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
   color:var(--snow);font-size:28px;cursor:pointer
 }
 .flip:hover{background:rgba(199,132,68,.42)}
@@ -168,24 +130,19 @@ textarea{min-height:92px;resize:vertical}
   position:absolute;z-index:4;right:18px;bottom:16px;
   padding:6px 10px;border-radius:999px;
   background:rgba(44,48,59,.5);
-  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
   border:1px solid rgba(255,255,255,.12);
   font-size:12px;color:var(--snow)
 }
 @keyframes pageIn{from{opacity:.45;transform:translateX(18px) rotate(1deg) scale(.98)}to{opacity:1;transform:none}}
 
-/* ===== Daily Banner — Liquid Glass Overlay ===== */
+/* ===== Daily Banner ===== */
 .daily{position:relative;min-height:clamp(360px,54vw,620px);margin:44px 0 18px;background-size:cover;background-position:center;isolation:isolate;border-radius:34px;overflow:hidden;opacity:.01;transform:translateY(10px) scale(.992);transition:opacity .72s ease,transform .72s ease;box-shadow:0 24px 72px rgba(0,0,0,.3);background-clip:padding-box}
 .daily.daily-ready{opacity:1;transform:none}
-/* glass overlay on the banner */
 .daily:before{
   content:'';position:absolute;inset:0;z-index:1;
-  backdrop-filter:blur(2px) saturate(110%);
-  -webkit-backdrop-filter:blur(2px) saturate(110%);
   background:linear-gradient(180deg,rgba(18,23,34,.05),rgba(18,23,34,.55) 70%,rgba(18,23,34,.85));
   border-radius:inherit
 }
-/* glass edge ring */
 .daily:after{
   content:'';position:absolute;inset:0;z-index:2;border-radius:inherit;pointer-events:none;
   border:1px solid transparent;
@@ -201,11 +158,11 @@ textarea{min-height:92px;resize:vertical}
 .hero-bottom .hero-main p{display:none}
 @media(max-width:560px){.daily{min-height:420px;margin-top:32px;border-radius:30px}.daily-shade{padding:24px}.daily h1{font-size:44px}.daily p{font-size:16px}}
 
-/* ---- refresh bar ---- */
+/* ---- refresh / note bar ---- */
 .refresh-bar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:5;display:flex;gap:6px}
 .refresh-btn{background:rgba(199,132,68,.28);border-color:rgba(199,132,68,.55);font-size:12px;cursor:pointer}
 .refresh-btn:hover{background:rgba(199,132,68,.45)}
-.note-bar{position:absolute;bottom:36px;left:50%;transform:translateX(-50%);z-index:5;padding:4px 10px;border-radius:999px;background:rgba(44,48,59,.5);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);font-size:11px;color:rgba(246,241,232,.72);white-space:nowrap;max-width:90%;overflow:hidden;text-overflow:ellipsis}
+.note-bar{position:absolute;bottom:36px;left:50%;transform:translateX(-50%);z-index:5;padding:4px 10px;border-radius:999px;background:rgba(44,48,59,.5);border:1px solid rgba(255,255,255,.12);font-size:11px;color:rgba(246,241,232,.72);white-space:nowrap;max-width:90%;overflow:hidden;text-overflow:ellipsis}
 
 /* ---- scroll rail ---- */
 .scroll-rail{position:fixed;z-index:50;right:6px;top:92px;bottom:22px;width:18px;opacity:0;pointer-events:none;transition:opacity .22s ease}
