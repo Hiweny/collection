@@ -174,5 +174,21 @@ textarea{min-height:92px;resize:vertical}
 body.scroll-fast .scroll-rail,.scroll-rail.dragging{opacity:1;pointer-events:auto}
 @media(hover:hover){.scroll-rail:hover{opacity:1;pointer-events:auto}}
 
+/* ===== Image Bed Tool ===== */
+.imgbed-tabs{display:grid;grid-template-columns:1fr 1fr!important;gap:8px;margin-bottom:10px}
+.imgbed-tabs .pill{text-align:center}
+.imgbed-dropzone{
+  display:flex;align-items:center;justify-content:center;min-height:120px;
+  border:2px dashed rgba(255,255,255,.2);border-radius:18px;
+  background:rgba(255,255,255,.04);cursor:pointer;transition:all .2s
+}
+.imgbed-dropzone:hover{border-color:rgba(199,132,68,.5);background:rgba(199,132,68,.08)}
+.imgbed-dropzone span{color:var(--muted);font-size:14px}
+.imgbed-preview{margin-top:12px;text-align:center}
+.imgbed-preview img{max-height:200px;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.imgbed-result{margin-top:14px;padding:14px;border-radius:18px;background:rgba(98,144,155,.1);border:1px solid rgba(98,144,155,.25)}
+.imgbed-result p{margin:0 0 8px;font-size:13px;color:var(--muted)}
+.imgbed-link-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}
+
 @media(max-width:860px){.hero,.toolbar{grid-template-columns:1fr}.grid{grid-template-columns:1fr 1fr}.top{border-radius:24px;align-items:flex-start}.top-actions{display:none}.parser-row{grid-template-columns:1fr}}
 @media(max-width:560px){.grid{grid-template-columns:1fr}.hero{margin-top:32px}h1{font-size:48px}.scroll-rail{right:2px;top:82px;bottom:16px;width:14px}.scroll-thumb{right:1px;width:6px}.daily h1{font-size:clamp(34px,9.5vw,44px);letter-spacing:-.05em}.daily p{font-size:14px}}

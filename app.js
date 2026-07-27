@@ -768,6 +768,60 @@ async function batchReconvertAll(){
   showToast('批量转存完成！共转存 '+changed+' 张图片 ✓');
 }
 
+// ---- Image Bed Tool (独立图床入口) ----
+const imgbedStatus=$('imgbedStatus');
+let _imgbedLastUrl='';
+
+function switchImgbedTab(tab){
+  document.querySelectorAll('[data-imgbed-tab]').forEach(b=>b.classList.toggle('active',b.dataset.imgbedTab===tab));
+  $('imgbedUploadPanel').classList.toggle('hidden',tab!=='upload');
+  $('imgbedUrlPanel').classList.toggle('hidden',tab!=='url');
+  $('imgbedResult').classList.add('hidden');
+  $('imgbedPreview').classList.add('hidden');
+  imgbedStatus.textContent='';
+}
+
+async function imgbedUploadFile(file){
+  imgbedStatus.textContent='上传中…';
+  try{
+    const base64=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result.split(',')[1]);
+      reader.onerror=reject;
+      reader.readAsDataURL(file);
+    });
+    const formBody='base64='+encodeURIComponent(base64);
+    const r=await fetchWithTimeout(IMGBED,30000,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:formBody});
+    const j=await r.json();
+    if(j.code===200&&j.url){
+      showImgbedResult(j.url,'本地上传');
+    }else{
+      imgbedStatus.textContent='上传失败：'+(j.msg||'未知错误');
+    }
+  }catch(e){imgbedStatus.textContent='上传失败：'+e.message}
+}
+
+async function imgbedConvertExternal(url){
+  imgbedStatus.textContent='转存中…';
+  const result=await imgbedOne(url,20000);
+  if(result){
+    showImgbedResult(result,'外链转存');
+  }else{
+    imgbedStatus.textContent='转存失败，请检查链接是否有效或尝试本地上传';
+  }
+}
+
+function showImgbedResult(url,source){
+  _imgbedLastUrl=url;
+  $('imgbedResult').classList.remove('hidden');
+  $('imgbedResultUrl').value=url;
+  // 预览
+  const preview=$('imgbedPreview');
+  preview.innerHTML='<img src="'+esc(url)+'" style="max-height:160px;border-radius:12px">';
+  preview.classList.remove('hidden');
+  imgbedStatus.textContent=source+'成功 ✓ 链接已生成';
+}
+
 // ---- refreshFavVideo (from randomness) ----
 async function refreshFavVideo(btn,id){
   let it=items.find(x=>x.id===id);
@@ -831,9 +885,10 @@ function card(it){
   let media=mediaBlock(it);
   let hasImgs=(it.mediaUrls||[]).length>0;
   let allOnImgbed=hasImgs&&allImgbed(it.mediaUrls||[]);
-  let links=(it.mediaUrls||[]).slice(0,5).map((u,i)=>'<a class="small" target="_blank" href="'+esc(u)+'">图'+(i+1)+'</a>').join('')+(it.videoUrl?'<a class="small" target="_blank" href="'+esc(it.videoUrl)+'">视频</a>':'');
+  // 只保留视频链接，隐藏"图1/图2"文字链和原平台链接
+  let vidLink=it.videoUrl?'<a class="small" target="_blank" href="'+esc(it.videoUrl)+'">视频</a>':'';
   let reconvertBtn=hasImgs?'<button class="small reconvert" onclick="reconvertItemImages(\''+it.id+'\')" title="转存图片到图床防止防盗链失效">'+(allOnImgbed?'✅ 已转存':'🖼️ 转存图床')+'</button>':'';
-  return '<article class="item"><div class="media">'+media+'</div><div class="body"><div class="meta"><span class="tag">'+esc(it.platform)+'</span><span class="type">'+esc(it.type)+'</span>'+(allOnImgbed?'<span class="tag" style="background:rgba(199,132,68,.2);border-color:rgba(199,132,68,.4)">🔒 图床</span>':'')+'</div><p class="title">'+esc(it.title)+'</p><a class="url" target="_blank" href="'+esc(it.sourceUrl)+'">'+esc(it.sourceUrl)+'</a><div class="links">'+links+reconvertBtn+'<button class="small" onclick="del(\''+it.id+'\')">删除</button></div></div></article>';
+  return '<article class="item"><div class="media">'+media+'</div><div class="body"><div class="meta"><span class="tag">'+esc(it.platform)+'</span><span class="type">'+esc(it.type)+'</span>'+(allOnImgbed?'<span class="tag" style="background:rgba(199,132,68,.2);border-color:rgba(199,132,68,.4)">🔒 图床</span>':'')+'</div><p class="title">'+esc(it.title)+'</p><div class="links">'+vidLink+reconvertBtn+'<button class="small" onclick="del(\''+it.id+'\')">删除</button></div></div></article>';
 }
 
 // ---- render ----
@@ -892,6 +947,42 @@ $('clearBtn').onclick=()=>{
   }
 };
 $('reconvertAllBtn').onclick=batchReconvertAll;
+
+// ---- Image Bed Tool Events ----
+document.querySelectorAll('[data-imgbed-tab]').forEach(b=>{
+  b.addEventListener('click',()=>switchImgbedTab(b.dataset.imgbedTab));
+});
+$('imgbedFile').addEventListener('change',e=>{
+  const f=e.target.files[0];
+  if(!f)return;
+  imgbedUploadFile(f);
+});
+// 拖拽上传
+const dropzone=$('imgbedDropzone');
+if(dropzone){
+  dropzone.addEventListener('dragover',e=>{e.preventDefault();dropzone.style.borderColor='rgba(199,132,68,.5)'});
+  dropzone.addEventListener('dragleave',e=>{e.preventDefault();dropzone.style.borderColor=''});
+  dropzone.addEventListener('drop',e=>{
+    e.preventDefault();dropzone.style.borderColor='';
+    const f=(e.dataTransfer.files||[])[0];
+    if(f&&f.type.startsWith('image/'))imgbedUploadFile(f);
+  });
+}
+$('imgbedUrlBtn').addEventListener('click',()=>{
+  const url=$('imgbedUrlInput').value.trim();
+  if(!url){showToast('请输入图片链接');return;}
+  imgbedConvertExternal(url);
+});
+$('imgbedCopyBtn').addEventListener('click',()=>{
+  const url=$('imgbedResultUrl').value;
+  if(url){navigator.clipboard.writeText(url).then(()=>showToast('已复制链接')).catch(()=>showToast('复制失败'));}
+});
+$('imgbedFavBtn').addEventListener('click',()=>{
+  const url=$('imgbedResultUrl').value;
+  if(!url)return;
+  add({id:'imgbed_'+Date.now(),platform:'imgbed',type:'image',title:'图床图片',sourceUrl:url,resolvedUrl:url,coverUrl:url,mediaUrls:[url],videoUrl:'',tags:['imgbed'],createdAt:new Date().toISOString(),note:''});
+  showToast('已收藏到本地 ✓');
+});
 
 // ---- Liquid Glass Mouse Tracking ----
 (function(){
