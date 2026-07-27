@@ -1,4 +1,4 @@
-const CACHE = 'snowline-v5';
+const CACHE = 'snowline-v7';
 const SHELL = [
   './',
   './index.html',
