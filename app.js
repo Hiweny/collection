@@ -1,5 +1,6 @@
 const KEY='snowline_media_collection_v2';
 const C='https://api.cors.syrins.tech/?url=';
+const IMGBED='https://api.yujn.cn/api/360_img.php';
 let items=[],filter='all';
 const $=id=>document.getElementById(id),grid=$('grid'),empty=$('empty'),q=$('q'),status=$('status');
 
@@ -16,10 +17,57 @@ function showToast(msg){
 }
 
 // ---- fetchWithTimeout (AbortController) ----
-function fetchWithTimeout(url,ms){
+function fetchWithTimeout(url,ms,opts){
   const ctrl=new AbortController();
   const timer=setTimeout(()=>ctrl.abort(),ms);
-  return fetch(url,{signal:ctrl.signal}).finally(()=>clearTimeout(timer));
+  const fetchOpts=opts?Object.assign({},opts,{signal:ctrl.signal}):{signal:ctrl.signal};
+  return fetch(url,fetchOpts).finally(()=>clearTimeout(timer));
+}
+
+// ---- Image Bed (360图床) Conversion ----
+// 将图片链接转存到360图床，获取永久链接
+async function imgbedOne(url,timeout){
+  timeout=timeout||15000;
+  const apiUrl=IMGBED+'?url='+encodeURIComponent(url);
+  // 方式1：直连图床API
+  try{
+    const r=await fetchWithTimeout(apiUrl,timeout);
+    const j=await r.json();
+    if(j.code===200&&j.url)return j.url;
+  }catch(e){}
+  // 方式2：代理转发图床API
+  try{
+    const r=await fetchWithTimeout(C+apiUrl,timeout);
+    const j=await r.json();
+    if(j.code===200&&j.url)return j.url;
+  }catch(e){}
+  // 方式3：代理下载图片→base64→POST上传
+  try{
+    const imgR=await fetchWithTimeout(C+url,30000);
+    const blob=await imgR.blob();
+    const base64=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result.split(',')[1]);
+      reader.onerror=reject;
+      reader.readAsDataURL(blob);
+    });
+    const formBody='base64='+encodeURIComponent(base64);
+    const postR=await fetchWithTimeout(IMGBED,20000,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:formBody});
+    const j=await postR.json();
+    if(j.code===200&&j.url)return j.url;
+  }catch(e){}
+  return null;
+}
+
+async function imgbedBatch(urls){
+  if(!urls||!urls.length)return urls;
+  const out=[];
+  for(let i=0;i<urls.length;i++){
+    status.textContent='图床转存中… '+(i+1)+'/'+urls.length;
+    const converted=await imgbedOne(urls[i]);
+    out.push(converted||urls[i]);
+  }
+  return out;
 }
 
 // ---- save / load ----
@@ -91,7 +139,7 @@ function addFromMulti(raw){
   return true;
 }
 
-// ---- tryDouyinParse (from randomness) ----
+// ---- tryDouyinParse (bugpk.com primary, yujn.cn fallback) ----
 async function tryDouyinParse(item,url){
   const apiUrl='https://api.bugpk.com/api/douyin?url='+encodeURIComponent(url);
   const sources=[
@@ -120,32 +168,113 @@ async function tryDouyinParse(item,url){
       }
     }catch(e){continue}
   }
+  // 备用接口：yujn.cn 抖音解析（返回格式：{msg,name,title,video,play_video,cover,images,type}）
+  try{
+    const r=await fetchWithTimeout('https://api.yujn.cn/api/dy_jx.php?msg='+encodeURIComponent(url),12000);
+    const j=await r.json();
+    if(j.video||(j.images&&j.images.length)){
+      item.title=j.title||item.title||'';
+      item.author=j.name||'';
+      item.coverUrl=j.cover||'';
+      item.mediaUrls=j.images||[];
+      item.videoUrl=j.video||j.play_video||'';
+      if(item.videoUrl)item.type='video';
+      else if(item.mediaUrls.length)item.type='image';
+      item.platform='douyin';item.tags=['douyin'];
+      return true;
+    }
+  }catch(e){}
+  // 通过代理重试 yujn.cn
+  try{
+    const r=await fetchWithTimeout(C+'https://api.yujn.cn/api/dy_jx.php?msg='+encodeURIComponent(url),12000);
+    const j=await r.json();
+    if(j.video||(j.images&&j.images.length)){
+      item.title=j.title||item.title||'';
+      item.author=j.name||'';
+      item.coverUrl=j.cover||'';
+      item.mediaUrls=j.images||[];
+      item.videoUrl=j.video||j.play_video||'';
+      if(item.videoUrl)item.type='video';
+      else if(item.mediaUrls.length)item.type='image';
+      item.platform='douyin';item.tags=['douyin'];
+      return true;
+    }
+  }catch(e){}
   showToast('抖音解析失败：请检查链接是否正确，或稍后重试');
   return false;
 }
 
-// ---- tryXhsParse (from randomness) ----
+// ---- tryXhsParse (yujn.cn primary → bugpk.com xhsimg → bugpk.com xhs) ----
 async function tryXhsParse(item,url){
-  const apiUrl='https://api.bugpk.com/api/xhsjx?url='+encodeURIComponent(url);
-  const sources=[
-    {label:'直连',fetch:()=>fetchWithTimeout(apiUrl,10000)},
-    {label:'代理',fetch:()=>fetchWithTimeout(C+apiUrl,10000)}
+  // 主接口：yujn.cn 小红书解析（返回格式：{name,title,desc,images,msg}）
+  try{
+    const r=await fetchWithTimeout('https://api.yujn.cn/api/xhs.php?url='+encodeURIComponent(url),12000);
+    const j=await r.json();
+    if(j.images&&j.images.length){
+      item.title=j.title||j.desc||'';
+      item.author=j.name||'';
+      item.coverUrl=j.images[0]||'';
+      item.mediaUrls=j.images;
+      item.type='image';
+      item.platform='xhs';item.tags=['xhs'];
+      return true;
+    }
+  }catch(e){}
+  // 通过代理重试 yujn.cn
+  try{
+    const r=await fetchWithTimeout(C+'https://api.yujn.cn/api/xhs.php?url='+encodeURIComponent(url),12000);
+    const j=await r.json();
+    if(j.images&&j.images.length){
+      item.title=j.title||j.desc||'';
+      item.author=j.name||'';
+      item.coverUrl=j.images[0]||'';
+      item.mediaUrls=j.images;
+      item.type='image';
+      item.platform='xhs';item.tags=['xhs'];
+      return true;
+    }
+  }catch(e){}
+  // 备用接口1：bugpk.com 小红书图文解析（返回格式：{code,data:{author,title,desc,cover,images}}）
+  const xhsimgUrl='https://api.bugpk.com/api/xhsimg?url='+encodeURIComponent(url);
+  const imgSources=[
+    {label:'直连',fetch:()=>fetchWithTimeout(xhsimgUrl,10000)},
+    {label:'代理',fetch:()=>fetchWithTimeout(C+xhsimgUrl,10000)}
   ];
-  for(const src of sources){
+  for(const src of imgSources){
+    try{
+      let r=await src.fetch();
+      if(!r)continue;
+      let j=await r.json();
+      if(j.code===200&&j.data&&j.data.images&&j.data.images.length){
+        let d=j.data;
+        item.title=d.title||d.desc||'';
+        item.author=d.author||'';
+        item.coverUrl=d.cover||d.images[0]||'';
+        item.mediaUrls=d.images;
+        item.type='image';
+        item.platform='xhs';item.tags=['xhs'];
+        return true;
+      }
+    }catch(e){continue}
+  }
+  // 备用接口2：bugpk.com 小红书视频解析（返回格式：{code,data:{author,title,desc,cover,url}}）
+  const xhsUrl='https://api.bugpk.com/api/xhs?url='+encodeURIComponent(url);
+  const vidSources=[
+    {label:'直连',fetch:()=>fetchWithTimeout(xhsUrl,10000)},
+    {label:'代理',fetch:()=>fetchWithTimeout(C+xhsUrl,10000)}
+  ];
+  for(const src of vidSources){
     try{
       let r=await src.fetch();
       if(!r)continue;
       let j=await r.json();
       if(j.code===200&&j.data){
         let d=j.data;
-        item.title=d.title||d.desc||item.title||'';
-        item.author=d.author?.name||d.author||'';
-        item.coverUrl=d.cover||d.coverUrl||'';
-        let imgs=d.images||d.imgurl||d.pics||[];
-        let vid=d.url||d.video||d.video_url||d.videoUrl||'';
-        if(d.live_photo&&d.live_photo.length){imgs=d.live_photo.map(i=>i.image).filter(Boolean);if(!vid)vid=d.live_photo[0].video||''}
-        item.mediaUrls=imgs;
-        item.videoUrl=vid;
+        item.title=d.title||d.desc||'';
+        item.author=d.author||'';
+        item.coverUrl=d.cover||'';
+        item.videoUrl=d.url||'';
+        if(d.images&&d.images.length)item.mediaUrls=d.images;
         if(item.videoUrl)item.type='video';
         else if(item.mediaUrls.length)item.type='image';
         item.platform='xhs';item.tags=['xhs'];
@@ -206,6 +335,15 @@ async function parseAdd(){
     let item={id:'douyin_'+Date.now(),platform:'douyin',type:'video',title:'',author:'',sourceUrl:src,resolvedUrl:src,coverUrl:'',mediaUrls:[],videoUrl:'',tags:['douyin'],createdAt:new Date().toISOString(),note:''};
     let ok=await tryDouyinParse(item,src);
     if(ok){
+      // 图片转存到图床（防止防盗链失效）
+      if(item.mediaUrls&&item.mediaUrls.length){
+        status.textContent='图片转存中…';
+        item.mediaUrls=await imgbedBatch(item.mediaUrls);
+        if(item.coverUrl){
+          const cv=await imgbedOne(item.coverUrl);
+          if(cv)item.coverUrl=cv;
+        }
+      }
       if(item.videoUrl&&(item.videoUrl.includes('/api/')||item.videoUrl.includes('.php'))){
         item._apiUrl=item.videoUrl;
         item.note='⚠️ 此视频来自随机 API，每次打开可能不同。点击下方「刷新」可重新加载。';
@@ -221,6 +359,15 @@ async function parseAdd(){
     let item={id:'xhs_'+Date.now(),platform:'xhs',type:'image',title:'',author:'',sourceUrl:src,resolvedUrl:src,coverUrl:'',mediaUrls:[],videoUrl:'',tags:['xhs'],createdAt:new Date().toISOString(),note:''};
     let ok=await tryXhsParse(item,src);
     if(ok){
+      // 图片转存到图床（防止防盗链失效）
+      if(item.mediaUrls&&item.mediaUrls.length){
+        status.textContent='图片转存中…';
+        item.mediaUrls=await imgbedBatch(item.mediaUrls);
+        if(item.coverUrl){
+          const cv=await imgbedOne(item.coverUrl);
+          if(cv)item.coverUrl=cv;
+        }
+      }
       add(item);$('source').value='';status.textContent='';
       showToast('小红书解析成功 ✓');
     }
@@ -245,7 +392,7 @@ async function parseAdd(){
 }
 
 function plat(u,m){if(m==='douyin'||/douyin|iesdouyin/.test(u))return'douyin';if(m==='xhs'||/xiaohongshu|xhslink/.test(u))return'xhs';return'short'}
-function api(p){return{douyin:'https://api.bugpk.com/api/douyin',xhs:'https://api.bugpk.com/api/xhsjx',short:'https://api.bugpk.com/api/short_videos'}[p]}
+function api(p){return{douyin:'https://api.bugpk.com/api/douyin',xhs:'https://api.bugpk.com/api/xhs',short:'https://api.bugpk.com/api/short_videos'}[p]}
 
 // ---- refreshFavVideo (from randomness) ----
 async function refreshFavVideo(btn,id){
