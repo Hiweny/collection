@@ -200,7 +200,7 @@ async function tryDouyinParse(item,url){
       return true;
     }
   }catch(e){}
-  showToast('抖音解析失败：请检查链接是否正确，或稍后重试');
+  console.log('所有抖音专用接口均失败，将回退到聚合解析');
   return false;
 }
 
@@ -289,7 +289,8 @@ async function tryXhsParse(item,url){
     }
   }catch(e){}
   // 备用接口1：bugpk.com 小红书图文解析（需要 xsec_token）
-  const xhsimgUrl='https://api.bugpk.com/api/xhsimg?url='+encodeURIComponent(url);
+  let xhsimgUrl='https://api.bugpk.com/api/xhsimg?url='+encodeURIComponent(url);
+  if(xsec) xhsimgUrl+='&xsec_token='+encodeURIComponent(xsec);
   const imgSources=[
     {label:'直连',fetch:()=>fetchWithTimeout(xhsimgUrl,12000)},
     {label:'代理',fetch:()=>fetchWithTimeout(C+xhsimgUrl,12000)}
@@ -309,17 +310,17 @@ async function tryXhsParse(item,url){
         item.platform='xhs';item.tags=['xhs'];
         return true;
       }
-      // 检测 xsec_token 缺失
+      // 检测 xsec_token 缺失 — 不终止，继续尝试后续接口
       if(j.code===400&&j.msg&&j.msg.includes('xsec_token')){
         if(!xsec){
-          showToast('小红书链接缺少 xsec_token，请从小红书APP重新复制完整分享链接');
-          return false;
+          console.log('xhsimg 需要 xsec_token，继续尝试其他接口...');
         }
       }
     }catch(e){continue}
   }
   // 备用接口2：bugpk.com 小红书视频解析（返回格式：{code,data:{author,title,desc,cover,url}}）
-  const xhsUrl='https://api.bugpk.com/api/xhs?url='+encodeURIComponent(url);
+  let xhsUrl='https://api.bugpk.com/api/xhs?url='+encodeURIComponent(url);
+  if(xsec) xhsUrl+='&xsec_token='+encodeURIComponent(xsec);
   const vidSources=[
     {label:'直连',fetch:()=>fetchWithTimeout(xhsUrl,12000)},
     {label:'代理',fetch:()=>fetchWithTimeout(C+xhsUrl,12000)}
@@ -343,7 +344,7 @@ async function tryXhsParse(item,url){
       }
     }catch(e){continue}
   }
-  showToast('小红书解析失败：请检查链接是否正确，或从APP重新复制分享链接后重试');
+  console.log('所有小红书专用接口均失败，将回退到聚合解析');
   return false;
 }
 
@@ -395,6 +396,11 @@ async function parseAdd(){
     status.textContent='抖音解析中...';
     let item={id:'douyin_'+Date.now(),platform:'douyin',type:'video',title:'',author:'',sourceUrl:src,resolvedUrl:src,coverUrl:'',mediaUrls:[],videoUrl:'',tags:['douyin'],createdAt:new Date().toISOString(),note:''};
     let ok=await tryDouyinParse(item,src);
+    // 抖音解析失败 → 自动回退到聚合解析
+    if(!ok){
+      status.textContent='抖音解析失败，尝试聚合解析...';
+      ok=await tryAggregateParse(item,src);
+    }
     if(ok){
       // 图片转存到图床（防止防盗链失效）
       if(item.mediaUrls&&item.mediaUrls.length){
@@ -410,7 +416,7 @@ async function parseAdd(){
         item.note='⚠️ 此视频来自随机 API，每次打开可能不同。点击下方「刷新」可重新加载。';
       }
       add(item);$('source').value='';status.textContent='';
-      showToast('抖音解析成功 ✓');
+      showToast('解析成功 ✓（'+item.platform+'）');
     }
     return;
   }
@@ -419,6 +425,11 @@ async function parseAdd(){
     status.textContent='小红书解析中...';
     let item={id:'xhs_'+Date.now(),platform:'xhs',type:'image',title:'',author:'',sourceUrl:src,resolvedUrl:src,coverUrl:'',mediaUrls:[],videoUrl:'',tags:['xhs'],createdAt:new Date().toISOString(),note:''};
     let ok=await tryXhsParse(item,src);
+    // 小红书解析失败 → 自动回退到聚合解析
+    if(!ok){
+      status.textContent='小红书解析失败，尝试聚合解析...';
+      ok=await tryAggregateParse(item,src);
+    }
     if(ok){
       // 图片转存到图床（防止防盗链失效）
       if(item.mediaUrls&&item.mediaUrls.length){
@@ -430,7 +441,7 @@ async function parseAdd(){
         }
       }
       add(item);$('source').value='';status.textContent='';
-      showToast('小红书解析成功 ✓');
+      showToast('解析成功 ✓（'+item.platform+'）');
     }
     return;
   }
