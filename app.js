@@ -204,13 +204,62 @@ async function tryDouyinParse(item,url){
   return false;
 }
 
-// ---- tryXhsParse (yujn.cn primary → bugpk.com xhsimg → bugpk.com xhs) ----
+// ---- tryAggregateParse (聚合API兜底: bugpk.com/api/short_videos, 覆盖20+平台) ----
+async function tryAggregateParse(item,url){
+  const apiUrl='https://api.bugpk.com/api/short_videos?url='+encodeURIComponent(url);
+  const sources=[
+    {label:'直连',fetch:()=>fetchWithTimeout(apiUrl,25000)},
+    {label:'代理',fetch:()=>fetchWithTimeout(C+apiUrl,20000)}
+  ];
+  for(const src of sources){
+    try{
+      let r=await src.fetch();
+      if(!r)continue;
+      let j=await r.json();
+      if(j.code===200&&j.data){
+        let d=j.data;
+        item.title=d.title||d.desc||'';
+        item.author=(d.author&&d.author.name)||d.author||'';
+        item.coverUrl=d.cover||'';
+        let imgs=d.images||d.imgurl||d.pics||[];
+        let vid=d.url||d.video||d.video_url||'';
+        if(d.live_photo&&d.live_photo.length){
+          imgs=d.live_photo.map(i=>i.image).filter(Boolean);
+          if(!vid)vid=d.live_photo[0].video||'';
+        }
+        item.mediaUrls=imgs;
+        item.videoUrl=vid;
+        if(item.videoUrl)item.type='video';
+        else if(item.mediaUrls.length)item.type='image';
+        else item.type='media';
+        // 尝试从响应中推断平台
+        if(d.type==='douyin'||/douyin/.test(url))item.platform='douyin';
+        else if(d.type==='xhs'||/xiaohongshu|xhslink/.test(url))item.platform='xhs';
+        else item.platform='aggregate';
+        item.tags=[item.platform];
+        return true;
+      }
+    }catch(e){continue}
+  }
+  showToast('聚合解析失败：请检查链接是否正确，或稍后重试');
+  return false;
+}
+
+// ---- 提取小红书 xsec_token ----
+function extractXsecToken(url){
+  let m=url.match(/[?&]xsec_token=([^&]+)/);
+  return m?m[1]:null;
+}
+
+// ---- tryXhsParse (yujn.cn primary → bugpk.com xhsimg → bugpk.com xhs → 聚合兜底) ----
 async function tryXhsParse(item,url){
-  // 主接口：yujn.cn 小红书解析（返回格式：{name,title,desc,images,msg}）
+  // 检查是否有 xsec_token（小红书新版分享链接需要）
+  let xsec=extractXsecToken(url);
+  // 主接口：yujn.cn 小红书解析（返回格式：{code,msg,name,title,desc,images}）
   try{
-    const r=await fetchWithTimeout('https://api.yujn.cn/api/xhs.php?url='+encodeURIComponent(url),12000);
+    const r=await fetchWithTimeout('https://api.yujn.cn/api/xhs.php?url='+encodeURIComponent(url),15000);
     const j=await r.json();
-    if(j.images&&j.images.length){
+    if(j.code===200&&j.images&&j.images.length){
       item.title=j.title||j.desc||'';
       item.author=j.name||'';
       item.coverUrl=j.images[0]||'';
@@ -218,13 +267,18 @@ async function tryXhsParse(item,url){
       item.type='image';
       item.platform='xhs';item.tags=['xhs'];
       return true;
+    }
+    // 如果返回了 msg，可能是链接格式问题
+    if(j.code===201&&j.msg){
+      // 尝试备用接口，不要立即失败
+      console.log('yujn.cn 小红书返回:',j.msg);
     }
   }catch(e){}
   // 通过代理重试 yujn.cn
   try{
-    const r=await fetchWithTimeout(C+'https://api.yujn.cn/api/xhs.php?url='+encodeURIComponent(url),12000);
+    const r=await fetchWithTimeout(C+'https://api.yujn.cn/api/xhs.php?url='+encodeURIComponent(url),15000);
     const j=await r.json();
-    if(j.images&&j.images.length){
+    if(j.code===200&&j.images&&j.images.length){
       item.title=j.title||j.desc||'';
       item.author=j.name||'';
       item.coverUrl=j.images[0]||'';
@@ -234,11 +288,11 @@ async function tryXhsParse(item,url){
       return true;
     }
   }catch(e){}
-  // 备用接口1：bugpk.com 小红书图文解析（返回格式：{code,data:{author,title,desc,cover,images}}）
+  // 备用接口1：bugpk.com 小红书图文解析（需要 xsec_token）
   const xhsimgUrl='https://api.bugpk.com/api/xhsimg?url='+encodeURIComponent(url);
   const imgSources=[
-    {label:'直连',fetch:()=>fetchWithTimeout(xhsimgUrl,10000)},
-    {label:'代理',fetch:()=>fetchWithTimeout(C+xhsimgUrl,10000)}
+    {label:'直连',fetch:()=>fetchWithTimeout(xhsimgUrl,12000)},
+    {label:'代理',fetch:()=>fetchWithTimeout(C+xhsimgUrl,12000)}
   ];
   for(const src of imgSources){
     try{
@@ -255,13 +309,20 @@ async function tryXhsParse(item,url){
         item.platform='xhs';item.tags=['xhs'];
         return true;
       }
+      // 检测 xsec_token 缺失
+      if(j.code===400&&j.msg&&j.msg.includes('xsec_token')){
+        if(!xsec){
+          showToast('小红书链接缺少 xsec_token，请从小红书APP重新复制完整分享链接');
+          return false;
+        }
+      }
     }catch(e){continue}
   }
   // 备用接口2：bugpk.com 小红书视频解析（返回格式：{code,data:{author,title,desc,cover,url}}）
   const xhsUrl='https://api.bugpk.com/api/xhs?url='+encodeURIComponent(url);
   const vidSources=[
-    {label:'直连',fetch:()=>fetchWithTimeout(xhsUrl,10000)},
-    {label:'代理',fetch:()=>fetchWithTimeout(C+xhsUrl,10000)}
+    {label:'直连',fetch:()=>fetchWithTimeout(xhsUrl,12000)},
+    {label:'代理',fetch:()=>fetchWithTimeout(C+xhsUrl,12000)}
   ];
   for(const src of vidSources){
     try{
@@ -282,7 +343,7 @@ async function tryXhsParse(item,url){
       }
     }catch(e){continue}
   }
-  showToast('小红书解析失败：请检查链接是否正确，或稍后重试');
+  showToast('小红书解析失败：请检查链接是否正确，或从APP重新复制分享链接后重试');
   return false;
 }
 
@@ -374,25 +435,75 @@ async function parseAdd(){
     return;
   }
 
-  // fallback: 直接 API 调用
-  let p=plat(src,mode);
-  status.textContent='解析中...';
-  try{
-    let r=await fetchWithTimeout(api(p)+'?url='+encodeURIComponent(src),10000);
-    let j=await r.json();
-    if(j.code&&j.code!==200)throw new Error(j.msg||'解析失败');
-    let it=norm(j,src,p);
-    if(it.videoUrl&&(it.videoUrl.includes('/api/')||it.videoUrl.includes('.php'))){
-      it._apiUrl=it.videoUrl;
-      it.note='⚠️ 此视频来自随机 API，每次打开可能不同。点击下方「刷新」可重新加载。';
+  // ---- 聚合解析兜底（支持20+平台自动识别：B站/快手/微博/Ins/YouTube等） ----
+  if(mode==='auto'||mode==='general'){
+    status.textContent='聚合解析中...';
+    let item={id:'aggr_'+Date.now(),platform:'aggregate',type:'media',title:'',author:'',sourceUrl:src,resolvedUrl:src,coverUrl:'',mediaUrls:[],videoUrl:'',tags:['aggregate'],createdAt:new Date().toISOString(),note:''};
+    let ok=await tryAggregateParse(item,src);
+    if(ok){
+      // 图片转存到图床（防止防盗链失效）
+      if(item.mediaUrls&&item.mediaUrls.length){
+        status.textContent='图片转存中…';
+        item.mediaUrls=await imgbedBatch(item.mediaUrls);
+        if(item.coverUrl){
+          const cv=await imgbedOne(item.coverUrl);
+          if(cv)item.coverUrl=cv;
+        }
+      }
+      if(item.videoUrl&&(item.videoUrl.includes('/api/')||item.videoUrl.includes('.php'))){
+        item._apiUrl=item.videoUrl;
+        item.note='⚠️ 此视频来自随机 API，每次打开可能不同。点击下方「刷新」可重新加载。';
+      }
+      add(item);$('source').value='';status.textContent='';
+      showToast('聚合解析成功 ✓（'+item.platform+'）');
     }
-    add(it);$('source').value='';status.textContent='';
-    showToast('解析成功，已保存到本地 ✓');
-  }catch(e){showToast('解析失败：'+e.message+'。可能是接口跨域或接口临时不可用。')}
+    return;
+  }
 }
 
-function plat(u,m){if(m==='douyin'||/douyin|iesdouyin/.test(u))return'douyin';if(m==='xhs'||/xiaohongshu|xhslink/.test(u))return'xhs';return'short'}
-function api(p){return{douyin:'https://api.bugpk.com/api/douyin',xhs:'https://api.bugpk.com/api/xhs',short:'https://api.bugpk.com/api/short_videos'}[p]}
+// ---- reconvertItemImages (将已有收藏的图片重新转存到图床) ----
+async function reconvertItemImages(id){
+  let it=items.find(x=>x.id===id);
+  if(!it)return;
+  let urls=it.mediaUrls||[];
+  if(!urls.length){showToast('该项目没有图片需要转存');return;}
+  status.textContent='图床转存中…';
+  let converted=await imgbedBatch(urls);
+  // 只替换成功转存的
+  let changed=0;
+  for(let i=0;i<urls.length;i++){
+    if(converted[i]&&converted[i]!==urls[i]){it.mediaUrls[i]=converted[i];changed++}
+  }
+  if(it.coverUrl){
+    const cv=await imgbedOne(it.coverUrl);
+    if(cv&&cv!==it.coverUrl){it.coverUrl=cv;changed++}
+  }
+  save();render();status.textContent='';
+  if(changed>0)showToast('已转存 '+changed+' 张图片到图床 ✓');
+  else showToast('图片已全部在图床，无需转存');
+}
+
+// ---- batchReconvertAll (批量转存全部图片) ----
+async function batchReconvertAll(){
+  let allImgItems=items.filter(i=>(i.mediaUrls||[]).length>0);
+  if(!allImgItems.length){showToast('没有需要转存的图片');return;}
+  if(!confirm('将把全部 '+allImgItems.length+' 个项目的图片转存到图床，可能需要较长时间。继续？'))return;
+  let total=0,changed=0;
+  for(let it of allImgItems){
+    status.textContent='批量转存中… '+(++total)+'/'+allImgItems.length;
+    let urls=it.mediaUrls||[];
+    let converted=await imgbedBatch(urls);
+    for(let i=0;i<urls.length;i++){
+      if(converted[i]&&converted[i]!==urls[i]){it.mediaUrls[i]=converted[i];changed++}
+    }
+    if(it.coverUrl){
+      const cv=await imgbedOne(it.coverUrl);
+      if(cv&&cv!==it.coverUrl){it.coverUrl=cv;changed++}
+    }
+  }
+  save();render();status.textContent='';
+  showToast('批量转存完成！共转存 '+changed+' 张图片 ✓');
+}
 
 // ---- refreshFavVideo (from randomness) ----
 async function refreshFavVideo(btn,id){
@@ -455,8 +566,10 @@ function flip(id,step){
 // ---- card ----
 function card(it){
   let media=mediaBlock(it);
+  let hasImgs=(it.mediaUrls||[]).length>0;
   let links=(it.mediaUrls||[]).slice(0,5).map((u,i)=>'<a class="small" target="_blank" href="'+esc(u)+'">图'+(i+1)+'</a>').join('')+(it.videoUrl?'<a class="small" target="_blank" href="'+esc(it.videoUrl)+'">视频</a>':'');
-  return '<article class="item"><div class="media">'+media+'</div><div class="body"><div class="meta"><span class="tag">'+esc(it.platform)+'</span><span class="type">'+esc(it.type)+'</span></div><p class="title">'+esc(it.title)+'</p><a class="url" target="_blank" href="'+esc(it.sourceUrl)+'">'+esc(it.sourceUrl)+'</a><div class="links">'+links+'<button class="small" onclick="del(\''+it.id+'\')">删除</button></div></div></article>';
+  let reconvertBtn=hasImgs?'<button class="small reconvert" onclick="reconvertItemImages(\''+it.id+'\')" title="转存图片到图床防止防盗链失效">🖼️ 转存图床</button>':'';
+  return '<article class="item"><div class="media">'+media+'</div><div class="body"><div class="meta"><span class="tag">'+esc(it.platform)+'</span><span class="type">'+esc(it.type)+'</span></div><p class="title">'+esc(it.title)+'</p><a class="url" target="_blank" href="'+esc(it.sourceUrl)+'">'+esc(it.sourceUrl)+'</a><div class="links">'+links+reconvertBtn+'<button class="small" onclick="del(\''+it.id+'\')">删除</button></div></div></article>';
 }
 
 // ---- render ----
@@ -514,6 +627,7 @@ $('clearBtn').onclick=()=>{
     showToast('已清空');
   }
 };
+$('reconvertAllBtn').onclick=batchReconvertAll;
 
 // ---- Liquid Glass Mouse Tracking ----
 (function(){
