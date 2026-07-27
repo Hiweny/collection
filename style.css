@@ -98,6 +98,8 @@ textarea{min-height:92px;resize:vertical}
 .title{font-weight:850;line-height:1.4;margin:0 0 9px}
 .url{display:block;color:rgba(246,241,232,.56);font-family:ui-monospace,monospace;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}
 .small{padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);font-size:12px;text-decoration:none}
+.reconvert{background:rgba(98,144,155,.2);border-color:rgba(98,144,155,.4);color:rgba(246,241,232,.85)}
+.reconvert:hover{background:rgba(98,144,155,.35)}
 .empty{padding:42px;text-align:center;color:var(--muted)}
 .hidden{display:none!important}
 .foot{text-align:center;color:rgba(246,241,232,.48);font-size:13px;margin-top:34px}

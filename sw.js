@@ -1,4 +1,4 @@
-const CACHE = 'snowline-v2';
+const CACHE = 'snowline-v5';
 const SHELL = [
   './',
   './index.html',
@@ -31,7 +31,7 @@ self.addEventListener('fetch', e => {
 
   // API calls — network first, no cache
   if (/api\./.test(url.host) || /api\//.test(url.pathname)) {
-    return;
+    return; // let browser handle normally
   }
 
   // Image / video — cache first, fallback to network
