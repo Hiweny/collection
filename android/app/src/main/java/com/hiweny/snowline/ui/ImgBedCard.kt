@@ -34,7 +34,8 @@ fun ImgBedCard(vm: AppVm) {
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(30.dp), fill = ParserFill,
-        contentPadding = PaddingValues(22.dp)
+        contentPadding = PaddingValues(22.dp),
+        blurRadius = 24.dp
     ) {
         Text("图床工具 · 外链转存 / 本地上传", color = Snow, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(12.dp))

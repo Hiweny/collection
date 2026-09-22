@@ -134,7 +134,7 @@ object Api {
 
     // ---------------- 平台解析（复刻网页 Zi/Ji/Rr） ----------------
     private fun parseApi(api: String): JsonObject? {
-        repeat(2) { attempt ->
+        repeat(3) { attempt ->
             try {
                 // 解析接口冷启动可能较慢（实测可达 30s+），给足 60s 超时
                 val body = get(api, 60)
@@ -142,7 +142,8 @@ object Api {
                 if (j.get("code")?.asInt == 200 && j.has("data") && !j.get("data").isJsonNull)
                     return j.getAsJsonObject("data")
             } catch (e: Exception) { /* retry */ }
-            if (attempt == 0) Thread.sleep(800)
+            if (attempt == 0) Thread.sleep(1000)
+            else if (attempt == 1) Thread.sleep(2500)
         }
         return null
     }

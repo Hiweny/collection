@@ -69,9 +69,19 @@ fun ItemCard(it: MediaItem, vm: AppVm) {
             when {
                 images.size > 1 -> Gallery(it, current, idx, vm)
                 it.videoUrl.isNotBlank() -> VideoBox(it)
-                cover.isNotBlank() -> AsyncImage(
-                    model = cover, contentDescription = it.title,
-                    contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth()
+                cover.isNotBlank() -> coil.compose.SubcomposeAsyncImage(
+                    model = cover,
+                    contentDescription = it.title,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxWidth(),
+                    loading = {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner(26.dp, Muted) }
+                    },
+                    error = {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("NO PREVIEW", color = Color(0x66F6F1E8), fontSize = 13.sp)
+                        }
+                    }
                 )
                 else -> Text("NO PREVIEW", color = Color(0x66F6F1E8), fontSize = 13.sp)
             }

@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import coil.imageLoader
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -65,6 +66,22 @@ fun HomeScreen(
 
     // 首次有图后初始化每日卡片
     LaunchedEffect(items.size) { vm.ensureDaily() }
+
+    // 预加载收藏图片（进入时即把首屏之外的图拉进磁盘/内存缓存，避免滑到才空白加载）
+    val ctx0 = LocalContext.current
+    LaunchedEffect(items) {
+        items.forEach { mi ->
+            val u = if (mi.mediaUrls.isNotEmpty()) mi.mediaUrls[mi.idx.coerceAtLeast(0) % mi.mediaUrls.size]
+            else mi.coverUrl
+            if (u.isNotBlank()) {
+                runCatching {
+                    ctx0.imageLoader.enqueue(
+                        coil.request.ImageRequest.Builder(ctx0).data(u).build()
+                    )
+                }
+            }
+        }
+    }
 
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -145,7 +162,7 @@ fun HomeScreen(
                 Modifier.size(46.dp).clip(RoundedCornerShape(50)).background(Color(0xB82C303B))
                     .border(1.dp, Color(0x2EFFFFFF), RoundedCornerShape(50))
                     .clickable(remember { MutableInteractionSource() }, null) {
-                        scope.launch { listState.animateScrollToItem(0) }
+                        scope.launch { listState.scrollToItem(0) }
                     },
                 contentAlignment = Alignment.Center
             ) { Icon(Icons.Filled.KeyboardArrowUp, "回到顶部", tint = Snow, modifier = Modifier.size(24.dp)) }

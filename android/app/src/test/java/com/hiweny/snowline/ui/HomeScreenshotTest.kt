@@ -13,7 +13,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.ViewModelProvider
 import com.hiweny.snowline.MainActivity
 import com.hiweny.snowline.data.MediaItem
@@ -156,19 +156,19 @@ class HomeScreenshotTest {
         must("清空")
 
         shot("01_top")
-        rule.onNode(hasScrollAction()).performScrollToNode(hasText("图床上传的单张图片"))
+        rule.onNode(hasText("图床上传的单张图片")).performScrollTo()
         rule.waitForIdle()
         must("如果泪水比爱多 我们一起划小船。#Lolita #氛围感")
         must("图床上传的单张图片")
         must("这是一个抖音视频作品")
         shot("02_grid")
-        rule.onNode(hasScrollAction()).performScrollToNode(hasText("ABOVE THE SNOWLINE"))
+        rule.onNode(hasText("ABOVE THE SNOWLINE")).performScrollTo()
         rule.waitForIdle()
         must("ABOVE THE SNOWLINE")
         must("全部收藏")
         must("图片")
         must("视频")
-        rule.onNode(hasScrollAction()).performScrollToNode(hasText("Hiweny", substring = true))
+        rule.onNode(hasText("Hiweny", substring = true)).performScrollTo()
         rule.waitForIdle()
         must("Hiweny")
         must("制作 · 雪线之上", substring = true)
@@ -210,5 +210,28 @@ class HomeScreenshotTest {
         must("取消全选")
         must("转存并收藏", substring = true)
         shotWindows("05_transfer")
+    }
+
+    @Test
+    fun glass_quick() {
+        val now = Store.isoNow()
+        val one = MediaItem(
+            id = "douyin_1", platform = "douyin", type = "image",
+            title = "如果泪水比爱多 我们一起划小船。#Lolita #氛围感",
+            author = "啾吃一口",
+            sourceUrl = "https://v.douyin.com/PnH4JPD-wAc/",
+            coverUrl = "https://p5.ssl.qhimgs1.com/t02a2167de8d4e3c1cb.jpg",
+            mediaUrls = listOf(
+                "https://p5.ssl.qhimgs1.com/t02a2167de8d4e3c1cb.jpg",
+                "https://p0.ssl.qhimgs1.com/t02b0018d8844172c04.jpg",
+                "https://p5.ssl.qhimgs1.com/t0299253c85c1325cfb.jpg"
+            ),
+            tags = listOf("douyin"), createdAt = now
+        )
+        vm().store.clear(); vm().store.addAll(listOf(one))
+        rule.waitForIdle(); dismissSplash()
+        Thread.sleep(4000) // 等 Coil 软件模糊变换完成
+        rule.waitForIdle()
+        shot("06_glass")
     }
 }

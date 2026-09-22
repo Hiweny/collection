@@ -243,7 +243,7 @@ fun BrandLogo(cover: String?, spinning: Boolean, size: Dp = 42.dp) {
     val angle by transition.animateFloat(
         initialValue = 0f, targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            tween(if (spinning) 8000 else 1, easing = LinearEasing), RepeatMode.Restart
+            tween(if (spinning) 12000 else 1, easing = LinearEasing), RepeatMode.Restart
         ), label = "rot"
     )
     Box(

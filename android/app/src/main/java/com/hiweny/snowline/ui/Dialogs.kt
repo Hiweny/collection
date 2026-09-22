@@ -56,6 +56,15 @@ fun TransferDialog(vm: AppVm) {
             color = Muted, fontSize = 13.sp, lineHeight = 20.sp,
             modifier = Modifier.padding(horizontal = 20.dp)
         )
+        if (req.converting && req.progress.isNotBlank()) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Spinner(16.dp, Amber); Spacer(Modifier.width(8.dp))
+                Text(req.progress, color = Amber, fontSize = 13.sp)
+            }
+        }
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically

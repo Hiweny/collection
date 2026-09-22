@@ -223,13 +223,17 @@ class AppVm(app: Application) : AndroidViewModel(app) {
 
     fun confirmTransfer(onDone: () -> Unit) {
         val req = transfer ?: return
+        if (req.converting) return // 防重复点击：一次只跑一个转存任务
         val chosen = req.item.mediaUrls.filterIndexed { i, _ -> req.picked[i] }
         if (chosen.isEmpty()) { t("请至少选择一张图片"); return }
+        // 在主线程立刻给出反馈，按钮马上进入“转存中”，点击不再“没反应”
+        req.converting = true
+        req.progress = "准备转存…"
+        transfer = req.copy()
         viewModelScope.launch(Dispatchers.IO) {
-            req.converting = true; transfer = req.copy()
             try {
                 val converted = Api.batchTransfer(chosen) { i, n ->
-                    req.progress = "正在转存 $i/$n"; transfer = req.copy()
+                    req.progress = "正在转存 ${i + 1}/$n"; transfer = req.copy()
                 }
                 val leaked = converted.any { Regex("douyinpic|xiaohongcdn|xhscdn|douyin").containsMatchIn(it) }
                 if (leaked) throw RuntimeException("部分图片转存失败，请重试")

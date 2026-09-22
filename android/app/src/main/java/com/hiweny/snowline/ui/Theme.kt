@@ -1,5 +1,6 @@
 package com.hiweny.snowline.ui
 
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -8,18 +9,31 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 // —— 与网页 CSS 变量一一对应 ——
@@ -77,27 +91,79 @@ fun BodyGradient(modifier: Modifier = Modifier, content: @Composable BoxScope.()
     )
 }
 
-/** 玻璃卡片：半透明填充 + 1px 描边 + 顶部内嵌高光，近似网页 .card/.top/.item */
+/** 当前背景图地址（供卡片做磨砂玻璃取色） */
+val LocalBackdropUrl = staticCompositionLocalOf<String?> { null }
+
+/**
+ * 玻璃卡片（对照网页 .card / .parser / .top）：
+ * API31+ 取背景图在卡片区域的副本，RenderEffect 模糊后叠加半透明色调 = 真正的 iOS 磨砂玻璃；
+ * API26-30 无 RenderEffect，降级为半透明纯色填充。
+ */
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(28.dp),
     fill: Color = CardFill,
+    tint: Brush? = null,
     borderColor: Color = Color(0x1FFFFFFF),
     contentPadding: PaddingValues = PaddingValues(0.dp),
+    blurRadius: Dp = 18.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Column(
+    val backdropUrl = LocalBackdropUrl.current
+    val context = LocalContext.current
+    var pos by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(Offset.Zero) }
+    val density = LocalDensity.current
+    val view = LocalView.current
+    val frosted = !backdropUrl.isNullOrBlank() && view.width > 0
+    val gpuBlur = Build.VERSION.SDK_INT >= 31
+    val overscan = 30.dp
+
+    Box(
         modifier
             .clip(shape)
-            .background(fill)
-            .border(1.dp, borderColor, shape)
-            .background(
+            .onGloballyPositioned { c -> pos = c.positionInRoot() }
+    ) {
+        if (frosted) {
+            val rootW = with(density) { view.width.toDp() }
+            val rootH = with(density) { view.height.toDp() }
+            val ovPx = with(density) { overscan.toPx() }
+            val blurPx = with(density) { blurRadius.toPx() }
+            // API31+：原图 + GPU RenderEffect 模糊；低版本：Coil 软件模糊小位图
+            val model: Any = if (gpuBlur) backdropUrl!! else {
+                coil.request.ImageRequest.Builder(context)
+                    .data(backdropUrl)
+                    .size(300, 660)
+                    .transformations(BlurTransformation(blurPx))
+                    .build()
+            }
+            coil.compose.AsyncImage(
+                model = model,
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier
+                    .align(androidx.compose.ui.Alignment.TopStart)
+                    .width(rootW + overscan * 2)
+                    .height(rootH + overscan * 2)
+                    .graphicsLayer {
+                        translationX = -pos.x + ovPx
+                        translationY = -pos.y + ovPx
+                    }
+                    .then(if (gpuBlur) Modifier.blur(blurRadius) else Modifier)
+            )
+        }
+        // 色调层
+        val tintModifier = if (tint != null) Modifier.background(tint) else Modifier.background(fill)
+        Box(Modifier.matchParentSize().then(tintModifier))
+        // 顶部内嵌高光（对照 inset shadow）
+        Box(
+            Modifier.matchParentSize().background(
                 Brush.verticalGradient(
                     listOf(Color(0x14FFFFFF), Color(0x00FFFFFF), Color(0x00FFFFFF), Color(0x0FFFFFFF))
                 )
             )
-            .padding(contentPadding),
-        content = content
-    )
+        )
+        Box(Modifier.matchParentSize().border(1.dp, borderColor, shape))
+        Column(Modifier.matchParentSize().padding(contentPadding), content = content)
+    }
 }

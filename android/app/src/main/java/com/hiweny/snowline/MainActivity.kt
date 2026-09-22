@@ -95,6 +95,15 @@ fun AppRoot(vm: AppVm = viewModel()) {
         kotlinx.coroutines.delay(1100); splash = false
     }
 
+    // 闪屏背景：随机一张已收藏图片（收藏为空时回落背景图）
+    val splashImg = remember {
+        val pool = items.flatMap { mi ->
+            if (mi.mediaUrls.isNotEmpty()) mi.mediaUrls
+            else if (mi.coverUrl.isNotBlank()) listOf(mi.coverUrl) else emptyList()
+        }.filter { it.isNotBlank() && !it.startsWith("data:") }
+        pool.randomOrNull() ?: bgUrl
+    }
+
     Box(Modifier.fillMaxSize()) {
         // 底层渐变
         BodyGradient(Modifier.fillMaxSize()) {}
@@ -114,14 +123,16 @@ fun AppRoot(vm: AppVm = viewModel()) {
                 .alpha(.95f)
         )
 
-        // 主内容
-        HomeScreen(
-            vm = vm,
-            onImport = { runCatching { importLauncher.launch(arrayOf("text/*", "application/json", "text/plain", "*/*")) } },
-            onExport = { runCatching { exportLauncher.launch("snowline-images.txt") } },
-            onOpenSettings = { showSettings = true },
-            onClear = { confirmClear = true }
-        )
+        // 主内容（提供背景图地址，供卡片做磨砂玻璃）
+        androidx.compose.runtime.CompositionLocalProvider(LocalBackdropUrl provides bgUrl) {
+            HomeScreen(
+                vm = vm,
+                onImport = { runCatching { importLauncher.launch(arrayOf("text/*", "application/json", "text/plain", "*/*")) } },
+                onExport = { runCatching { exportLauncher.launch("snowline-images.txt") } },
+                onOpenSettings = { showSettings = true },
+                onClear = { confirmClear = true }
+            )
+        }
 
         // 忙碌 / Toast
         BusyAndToast(busy, toast)
@@ -142,7 +153,7 @@ fun AppRoot(vm: AppVm = viewModel()) {
 
         // 闪屏
         AnimatedVisibility(visible = splash, exit = fadeOut()) {
-            Splash(bgUrl)
+            Splash(splashImg)
         }
     }
 }
