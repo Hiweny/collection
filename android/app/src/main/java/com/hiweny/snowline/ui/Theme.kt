@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.dp
 val Snow = Color(0xFFF6F1E8)
 val Sky = Color(0xFF62909B)
 val Amber = Color(0xFFC78444)
+// 网页原生 range 滑块未设 accent-color，沿用浏览器默认蓝
+val WebBlue = Color(0xFF106DC7)
 val Blue = Color(0xFF2C303B)
 val Oat = Color(0xFFAB977E)
 val Muted = Color(0xADF6F1E8) // rgba(246,241,232,.68)

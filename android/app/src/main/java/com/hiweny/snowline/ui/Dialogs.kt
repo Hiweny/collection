@@ -153,12 +153,12 @@ fun SettingsDialog(vm: AppVm, initial: BgSettings, onClose: () -> Unit) {
             SliderRow("背景模糊 ${blur}px") {
                 Slider(value = blur.toFloat(), onValueChange = { blur = it.toInt() },
                     valueRange = 0f..24f, steps = 23, modifier = Modifier.width(170.dp),
-                    colors = SliderDefaults.colors(thumbColor = Amber, activeTrackColor = Amber))
+                    colors = SliderDefaults.colors(thumbColor = WebBlue, activeTrackColor = WebBlue))
             }
             SliderRow("背景亮度 ${brightness}%") {
                 Slider(value = brightness.toFloat(), onValueChange = { brightness = (it / 5).toInt() * 5 },
                     valueRange = 50f..130f, steps = 15, modifier = Modifier.width(170.dp),
-                    colors = SliderDefaults.colors(thumbColor = Amber, activeTrackColor = Amber))
+                    colors = SliderDefaults.colors(thumbColor = WebBlue, activeTrackColor = WebBlue))
             }
             Spacer(Modifier.height(4.dp))
         }
