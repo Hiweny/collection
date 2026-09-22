@@ -52,6 +52,7 @@ class Store(context: Context) {
 
     fun add(item: MediaItem) { _items.value = listOf(item) + _items.value; persist() }
     fun addAll(newItems: List<MediaItem>) { if (newItems.isNotEmpty()) { _items.value = newItems + _items.value; persist() } }
+    fun clear() { _items.value = emptyList(); persist() }
     fun remove(id: String) { _items.value = _items.value.filterNot { it.id == id }; persist() }
     fun replace(item: MediaItem) { _items.value = _items.value.map { if (it.id == item.id) item else it }; persist() }
 

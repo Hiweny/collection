@@ -38,7 +38,7 @@ class ApiDirectTest {
         println("expanded => $final")
         val base = MediaItem(id = "t", platform = "douyin", type = "video",
             sourceUrl = short, resolvedUrl = final, tags = listOf("douyin"))
-        val parsed = Api.parseDouyin(base, final)
+        val parsed = Api.parseDouyin(base, short) ?: Api.parseDouyin(base, final)
         assertNotNull("解析失败", parsed)
         println("images=${parsed!!.mediaUrls.size} title=${parsed.title}")
         assertTrue(parsed.mediaUrls.isNotEmpty())

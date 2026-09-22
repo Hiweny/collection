@@ -3,20 +3,24 @@ package com.hiweny.snowline.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.UploadFile
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,109 +28,84 @@ import coil.compose.AsyncImage
 
 @Composable
 fun ImgBedCard(vm: AppVm) {
-    var ext by remember { mutableStateOf("") }
-    var multi by remember { mutableStateOf("") }
-    val picker = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetMultipleContents()
-    ) { uris -> if (uris.isNotEmpty()) vm.uploadFiles(uris) }
-
-    GlassCard(Modifier.padding(horizontal = 16.dp)) {
-        SectionTitle("图床工具", "IMAGE HOST")
-        Spacer(Modifier.height(6.dp))
-        Text("外链转存走 360 图床；本地图片 / 文件走 pone.rs 免费托管（单文件最大 1GB）",
-            fontSize = 12.sp, color = Oat)
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (!uris.isNullOrEmpty()) vm.uploadFiles(uris)
+    }
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(30.dp), fill = ParserFill,
+        contentPadding = PaddingValues(22.dp)
+    ) {
+        Text("图床工具 · 外链转存 / 本地上传", color = Snow, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(12.dp))
+        // 外链转存（360）
+        DarkField(
+            value = vm.extInput, onValueChange = vm::updateExtInput, singleLine = true,
+            placeholder = "粘贴图片外链 URL（如小红书/抖音图片链接）"
+        )
+        Spacer(Modifier.height(10.dp))
+        PrimaryBtn("转存到图床", onClick = { vm.externalTransfer() }, modifier = Modifier.fillMaxWidth())
 
-        Text("外链转存", fontSize = 13.sp, color = Snow, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(6.dp))
-        OutlinedTextField(value = ext, onValueChange = { ext = it },
-            placeholder = { Text("粘贴图片外链（抖音 / 小红书等防盗链链接）", fontSize = 12.5.sp, color = Oat) },
-            singleLine = true, modifier = Modifier.fillMaxWidth(), colors = darkField())
-        Spacer(Modifier.height(8.dp))
-        Row {
-            PillButton("转存到图床", accent = true, modifier = Modifier.weight(1f)) { vm.externalTransfer(ext) }
-            Spacer(Modifier.width(10.dp))
-            PillButton("复制结果", modifier = Modifier.weight(1f),
-                enabled = vm.extResult.isNotBlank()) { vm.copy(vm.extResult, "托管链接") }
-        }
-        if (vm.extResult.isNotBlank()) {
-            Spacer(Modifier.height(8.dp))
-            ResultRow(url = vm.extResult, image = true,
-                onCopy = { vm.copy(vm.extResult, "托管链接") },
-                onFav = { vm.favoriteUpload(AppVm.Up("图床图片", vm.extResult, true)) })
-        }
-
-        Spacer(Modifier.height(16.dp))
-        Text("本地上传（支持多图片 / 多文件）", fontSize = 13.sp, color = Snow, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(8.dp))
+        // 本地上传（pone.rs）
+        Spacer(Modifier.height(12.dp))
+        val dz = RoundedCornerShape(18.dp)
         Box(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                .background(Color(0x14F6F1E8)).clickable {
-                    if (!vm.uploadBusy) picker.launch("*/*")
-                }.padding(vertical = 22.dp),
+            Modifier.fillMaxWidth().heightIn(min = 120.dp).clip(dz)
+                .background(Color(0x0AFFFFFF)).border(2.dp, Color(0x33FFFFFF), dz)
+                .clickable(remember { MutableInteractionSource() }, null) {
+                    runCatching { pick.launch(arrayOf("*/*")) }
+                },
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Filled.UploadFile, null, tint = Amber)
-                Spacer(Modifier.height(6.dp))
-                Text(if (vm.uploadBusy) "上传中…" else "点击选择图片或文件（可多选）", fontSize = 13.sp, color = Snow)
-                Spacer(Modifier.height(2.dp))
-                Text("图片可预览并收藏，文件直接返回直链", fontSize = 11.sp, color = Oat)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                if (vm.uploadBusy) Spinner(18.dp) else Icon(Icons.Filled.FileUpload, null, tint = Muted, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (vm.uploadBusy) "正在上传文件…" else "点击选择图片或文件上传（可多个）",
+                    color = Muted, fontSize = 14.sp
+                )
             }
         }
 
-        if (vm.uploads.isNotEmpty()) {
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("上传结果（${vm.uploads.size}）", fontSize = 13.sp, color = Snow,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                PillButton("全部图片收藏为图集", accent = true) { vm.favoriteAllImages() }
-            }
-            Spacer(Modifier.height(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
-                vm.uploads.forEach { u ->
-                    ResultRow(url = u.url, image = u.image, name = u.name,
-                        onCopy = { vm.copy(u.url, "文件链接") },
-                        onFav = { vm.favoriteUpload(u) })
+        // 图片预览
+        val preview = vm.bedPreview
+        if (!preview.isNullOrBlank()) {
+            Spacer(Modifier.height(12.dp))
+            AsyncImage(
+                model = preview, contentDescription = null, contentScale = ContentScale.Fit,
+                modifier = Modifier.heightIn(max = 200.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp))
+            )
+        }
+
+        // 结果链接
+        if (vm.bedLinks.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                    .background(Color(0x1A62909B)).border(1.dp, Color(0x4062909B), RoundedCornerShape(18.dp))
+                    .padding(14.dp)
+            ) {
+                Text("图床链接：", color = Muted, fontSize = 13.sp)
+                Spacer(Modifier.height(8.dp))
+                DarkField(
+                    value = vm.bedLinks.joinToString("\n"), onValueChange = {},
+                    readOnly = true, minLines = 1
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GhostBtn("复制", onClick = { vm.copy(vm.bedLinks.joinToString("\n"), "图床链接") },
+                        modifier = Modifier.weight(1f),
+                        icon = { Icon(Icons.Filled.ContentCopy, null, tint = Snow, modifier = Modifier.size(14.dp)) })
+                    PrimaryBtn("收藏", onClick = { vm.favoriteBed() }, modifier = Modifier.weight(1f),
+                        icon = { Icon(Icons.Filled.StarBorder, null, tint = Snow, modifier = Modifier.size(14.dp)) })
                 }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-        Text("直链收藏（每行一个，自动识别单图 / 图集）", fontSize = 13.sp, color = Snow, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(6.dp))
-        OutlinedTextField(value = multi, onValueChange = { multi = it },
-            placeholder = { Text("粘贴一个或多个图片直链", fontSize = 12.5.sp, color = Oat) },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp), colors = darkField(), maxLines = 5)
-        Spacer(Modifier.height(8.dp))
-        PillButton("收藏到夹", accent = true, modifier = Modifier.fillMaxWidth()) {
-            vm.favoriteMultiText(multi); multi = ""
-        }
-    }
-}
-
-@Composable
-private fun ResultRow(url: String, image: Boolean, name: String? = null,
-                      onCopy: () -> Unit, onFav: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-            .background(Color(0x14F6F1E8)).padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (image) {
-            AsyncImage(model = url, contentDescription = null,
-                modifier = Modifier.size(52.dp).clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF121722)))
-        } else {
-            Icon(Icons.Filled.UploadFile, null, tint = Teal, modifier = Modifier.size(40.dp).padding(6.dp))
-        }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(name ?: "图片直链", fontSize = 12.5.sp, color = Snow, maxLines = 1)
-            Text(url, fontSize = 10.5.sp, color = Oat, maxLines = 1)
-        }
-        IconButton(onClick = onCopy) { Icon(Icons.Filled.ContentCopy, "复制", tint = Snow, modifier = Modifier.size(18.dp)) }
-        PillButton(if (image) "收藏" else "收藏文件", accent = true) { onFav() }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "外链通过 360 图床转存；本地图片/文件由 pone.rs 免费托管，可多文件批量上传并一键收藏。",
+            color = Muted, fontSize = 13.sp, lineHeight = 22.sp
+        )
     }
 }

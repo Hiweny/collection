@@ -133,11 +133,19 @@ object Api {
     }
 
     // ---------------- 平台解析（复刻网页 Zi/Ji/Rr） ----------------
-    private fun parseApi(api: String): JsonObject? = try {
-        val body = get(api, 25)
-        val j = JsonParser.parseString(body).asJsonObject
-        if (j.get("code")?.asInt == 200 && j.has("data") && !j.get("data").isJsonNull) j.getAsJsonObject("data") else null
-    } catch (e: Exception) { null }
+    private fun parseApi(api: String): JsonObject? {
+        repeat(2) { attempt ->
+            try {
+                // 解析接口冷启动可能较慢（实测可达 30s+），给足 60s 超时
+                val body = get(api, 60)
+                val j = JsonParser.parseString(body).asJsonObject
+                if (j.get("code")?.asInt == 200 && j.has("data") && !j.get("data").isJsonNull)
+                    return j.getAsJsonObject("data")
+            } catch (e: Exception) { /* retry */ }
+            if (attempt == 0) Thread.sleep(800)
+        }
+        return null
+    }
 
     private fun fill(item: MediaItem, d: JsonObject, platform: String, tags: List<String>): MediaItem? {
         val title = d.str("title") ?: d.str("desc") ?: ""
@@ -186,13 +194,53 @@ object Api {
     fun parseGeneral(item: MediaItem, url: String): MediaItem? =
         parseApi("https://api.bugpk.com/api/short_videos?url=" + enc(url))?.let { fill(item, it, "general", listOf("general")) }
 
-    /** 随机诗句（用于随机卡片文案），失败返回空串 */
-    fun quote(): String = try {
-        val t = get("https://api.shanhe.kim/api/yan/api.php?format=json", 10)
+    // —— 一言：与网页一致，山河 JSON / 山河 text / 诗经 依次回落 ——
+    private fun shanheJson(): String = try {
+        val t = get("https://api.shanhe.kim/API/%E9%9A%8F%E6%9C%BA%E4%B8%80%E8%A8%80.php?type=json", 10)
         val j = JsonParser.parseString(t).asJsonObject
-        (j.getAsJsonObject("data")?.get("content")?.asString ?: "").trim()
-    } catch (e: Exception) {
-        try { get("https://api.yujn.cn/api/shijing.php?type=text", 10).trim() } catch (e2: Exception) { "" }
+        (j.get("data")?.takeIf { it.isJsonObject }?.asJsonObject?.get("content")?.asString
+            ?: j.get("content")?.asString ?: j.get("text")?.asString ?: "").trim()
+    } catch (e: Exception) { "" }
+    private fun shanheText(): String = try {
+        get("https://api.shanhe.kim/API/%E9%9A%8F%E6%9C%BA%E4%B8%80%E8%A8%80.php?type=text", 10).trim()
+    } catch (e: Exception) { "" }
+    private fun shijing(): String = try {
+        get("https://api.yujn.cn/api/shijing.php", 10).replace(Regex("\\s+"), " ").trim()
+    } catch (e: Exception) { "" }
+
+    /** 按网页轮换顺序取一言；turn 为轮换计数（奇偶两套顺序） */
+    fun quoteRotated(turn: Int): String {
+        val seq = if (turn % 2 == 0)
+            listOf(shanheJson(), shanheText(), shijing())
+        else
+            listOf(shijing(), shanheJson(), shanheText())
+        return seq.firstOrNull { it.isNotBlank() } ?: ""
+    }
+
+    // —— 网易云 / 酷狗 随机音乐（与网页 qi 歌单一致），原生直连无需代理 ——
+    data class Track(val name: String, val artist: String, val url: String, val cover: String)
+    private val playlists = listOf(
+        "https://node.api.xfabe.com/api/wangyi/randomMusic?type=json" to "netease",
+        "https://v2.xxapi.cn/api/randomkuwo" to "kuwo"
+    )
+    @Volatile private var musicRf = 0
+    fun randomMusic(): Track? {
+        repeat(playlists.size) { k ->
+            val idx = (musicRf + k) % playlists.size
+            val (base, kind) = playlists[idx]
+            try {
+                val t = get(base + "&_t=" + System.currentTimeMillis(), 10)
+                val j = JsonParser.parseString(t).asJsonObject
+                val d = if (j.has("data") && j.get("data").isJsonObject) j.getAsJsonObject("data") else j
+                val name = d.str("name") ?: d.str("title") ?: "未知歌曲"
+                val artist = d.str("artistsname") ?: d.str("singer") ?: d.str("artist")
+                    ?: if (kind == "netease") "网易云随机音乐" else "随机音乐"
+                val url = d.str("url") ?: d.str("mp3") ?: ""
+                val cover = d.str("picurl") ?: d.str("image") ?: d.str("cover") ?: ""
+                if (url.isNotBlank()) { musicRf = (idx + 1) % playlists.size; return Track(name, artist, url, cover) }
+            } catch (e: Exception) { /* try next */ }
+        }
+        return null
     }
 
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")

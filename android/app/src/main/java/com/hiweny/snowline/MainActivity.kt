@@ -1,6 +1,5 @@
 package com.hiweny.snowline
 
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -9,35 +8,35 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Upload
-import androidx.compose.material3.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.hiweny.snowline.data.BgSettings
-import com.hiweny.snowline.data.MediaItem
 import com.hiweny.snowline.ui.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -51,165 +50,145 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppRoot(vm: AppVm = viewModel()) {
-    val items by vm.items.collectAsState()
     val bg by vm.bg.collectAsState()
-    var openDetail by remember { mutableStateOf<MediaItem?>(null) }
+    val items by vm.items.collectAsState()
+    val toast = vm.toast
+    val busy = vm.busy
     var showSettings by remember { mutableStateOf(false) }
-    val ctx = LocalContext.current
+    var confirmClear by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    var bgUrl by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(bg, items) { bgUrl = vm.store.effectiveBgUrl() }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
 
-    val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
+    // 背景地址（随机模式每次进入随机一张收藏图）
+    var bgUrl by remember { mutableStateOf(vm.store.effectiveBgUrl()) }
+    LaunchedEffect(bg, items.size) { bgUrl = vm.store.effectiveBgUrl() }
+
+    // Toast 自动消失
+    LaunchedEffect(toast) {
+        if (toast != null) { kotlinx.coroutines.delay(2200); vm.clearToast() }
+    }
+
+    // 导入 / 导出（SAF，与网页 snowline-images.txt 互通）
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             val n = withContext(Dispatchers.IO) {
-                ctx.contentResolver.openInputStream(uri)?.use {
-                    vm.store.importText(it.readBytes().decodeToString())
-                } ?: 0
+                val text = ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }?.toString(Charsets.UTF_8).orEmpty()
+                vm.store.importText(text)
             }
-            vm.t(if (n > 0) "已导入 $n 条收藏 ✓" else "没有可导入的内容")
+            if (n > 0) vm.t("导入成功 · $n 个图集 ✓") else vm.t("导入失败或文件为空")
         }
     }
-    val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/plain")
-    ) { uri: Uri? ->
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
         if (uri != null) scope.launch {
             withContext(Dispatchers.IO) {
-                ctx.contentResolver.openOutputStream(uri)?.use {
-                    it.write(vm.store.exportText().toByteArray())
-                }
+                ctx.contentResolver.openOutputStream(uri)?.use { it.write(vm.store.exportText().toByteArray()) }
             }
-            vm.t("已导出 ✓")
+            vm.t("已导出 snowline-images.txt ✓")
         }
     }
 
-    val detail = openDetail
-    Box(Modifier.fillMaxSize().background(BgDeep)) {
-        // 背景：模糊 + 亮度，无暗色遮罩
-        bgUrl?.let { u ->
-            val b = bg.brightness / 100f
-            AsyncImage(
-                model = u, contentDescription = null, contentScale = ContentScale.Crop,
-                colorFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToScale(b, b, b, 1f) }),
-                modifier = Modifier
-                    .matchParentSize()
-                    .then(if (Build.VERSION.SDK_INT >= 31 && bg.blur > 0) Modifier.blur(bg.blur.dp) else Modifier)
+    // 启动闪屏
+    var splash by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(1100); splash = false
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        // 底层渐变
+        BodyGradient(Modifier.fillMaxSize()) {}
+        // 背景图片层
+        val b = bg.brightness / 100f
+        val cm = ColorMatrix(floatArrayOf(
+            b,0f,0f,0f,0f,
+            0f,b,0f,0f,0f,
+            0f,0f,b,0f,0f,
+            0f,0f,0f,1f,0f
+        ))
+        AsyncImage(
+            model = bgUrl, contentDescription = null, contentScale = ContentScale.Crop,
+            colorFilter = ColorFilter.colorMatrix(cm),
+            modifier = Modifier.fillMaxSize()
+                .then(if (Build.VERSION.SDK_INT >= 31) Modifier.blur(bg.blur.dp) else Modifier)
+                .alpha(.95f)
+        )
+
+        // 主内容
+        HomeScreen(
+            vm = vm,
+            onImport = { runCatching { importLauncher.launch(arrayOf("text/*", "application/json", "text/plain", "*/*")) } },
+            onExport = { runCatching { exportLauncher.launch("snowline-images.txt") } },
+            onOpenSettings = { showSettings = true },
+            onClear = { confirmClear = true }
+        )
+
+        // 忙碌 / Toast
+        BusyAndToast(busy, toast)
+
+        // 弹窗
+        if (vm.transfer != null) TransferDialog(vm)
+        if (showSettings) SettingsDialog(vm, bg) { showSettings = false }
+
+        if (confirmClear) {
+            AlertDialog(
+                onDismissRequest = { confirmClear = false },
+                title = { Text("清空本地收藏？") },
+                text = { Text("将删除全部收藏，此操作不可恢复。建议先导出备份。") },
+                confirmButton = { TextButton(onClick = { vm.clearAll(); confirmClear = false }) { Text("清空", color = Color(0xFFE07070)) } },
+                dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("取消") } }
             )
         }
-        Box(Modifier.matchParentSize().background(Color(0x33121722)))
 
-        Scaffold(
-            containerColor = Color.Transparent,
-            topBar = {
-                Row(
-                    Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("雪线之上", fontSize = 20.sp, color = Snow, fontWeight = FontWeight.Bold)
-                        Text("本地媒体收藏夹", fontSize = 11.sp, color = Oat)
-                    }
-                    IconButton(onClick = { importLauncher.launch(arrayOf("text/*", "application/json", "*/*")) })
-                    { Icon(Icons.Filled.Upload, "导入", tint = Snow) }
-                    IconButton(onClick = { exportLauncher.launch("snowline-images.txt") })
-                    { Icon(Icons.Filled.Download, "导出", tint = Snow) }
-                    IconButton(onClick = { showSettings = true })
-                    { Icon(Icons.Filled.Settings, "设置", tint = Snow) }
-                }
-            }
-        ) { pad ->
-            if (detail == null) {
-                HomeGrid(Modifier.padding(pad), items, vm) { openDetail = it }
-            } else {
-                DetailScreen(detail, vm) { openDetail = null }
-            }
+        // 闪屏
+        AnimatedVisibility(visible = splash, exit = fadeOut()) {
+            Splash(bgUrl)
         }
-
-        ToastHost(vm.toast)
-        BusyOverlay(vm.busy)
-        if (showSettings) {
-            SettingsDialog(bg, onDismiss = { showSettings = false }, onSave = {
-                vm.store.saveBg(it); bgUrl = vm.store.effectiveBgUrl(); showSettings = false
-                vm.t("设置已保存 ✓")
-            })
-        }
-        TransferDialog(vm)
     }
 }
 
 @Composable
-private fun HomeGrid(modifier: Modifier, items: List<MediaItem>, vm: AppVm, onOpen: (MediaItem) -> Unit) {
-    var kw by remember { mutableStateOf("") }
-    var filter by remember { mutableStateOf("all") }
-    val shown = items.filter {
-        (filter == "all" || it.type == filter || (filter == "image" && it.mediaUrls.isNotEmpty())) &&
-            (kw.isBlank() || it.title.contains(kw, true) || it.author.contains(kw, true) ||
-                it.tags.any { t -> t.contains(kw, true) })
-    }
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(top = 4.dp, bottom = 28.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = modifier.fillMaxSize()
+private fun Splash(bgUrl: String?) {
+    Box(
+        Modifier.fillMaxSize().background(Blue),
+        contentAlignment = Alignment.Center
     ) {
-        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-            DailyCard(items, vm.bg.collectAsState().value.carousel, vm)
-        }
-        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { AddCard(vm) }
-        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { ImgBedCard(vm) }
-        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-            CollectionHeader(items.size, kw, { kw = it }, filter, { filter = it })
-        }
-        items(shown, key = { it.id }, span = { _ -> androidx.compose.foundation.lazy.grid.GridItemSpan(1) }) { item ->
-            Box(Modifier.padding(horizontal = 6.dp)) { CollectionCard(item, onOpen) }
-        }
-        if (shown.isEmpty()) {
-            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.fillMaxWidth().padding(vertical = 36.dp), contentAlignment = Alignment.Center) {
-                    Text("暂无收藏，去添加第一条吧", color = Oat, fontSize = 13.sp)
-                }
-            }
-        }
-        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-            Text(
-                "本页面由 Hiweny 制作 · 雪线之上",
-                color = Oat, fontSize = 11.sp, maxLines = 1,
-                softWrap = false,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        if (!bgUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = bgUrl, contentDescription = null, contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().alpha(.55f)
             )
+        }
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x4D1B1F29), Color(0xB3121722)))))
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val tr = androidx.compose.animation.core.rememberInfiniteTransition(label = "sp")
+            val scale by tr.animateFloat(
+                1f, 1.06f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    androidx.compose.animation.core.tween(1200),
+                    androidx.compose.animation.core.RepeatMode.Reverse
+                ), label = "s"
+            )
+            Box(
+                Modifier.size(84.dp).clip(RoundedCornerShape(22.dp))
+                    .background(
+                        Brush.linearGradient(
+                            colorStops = arrayOf(
+                                0f to Snow, .31f to Snow, .3101f to Sky,
+                                .67f to Sky, .6701f to Amber, 1f to Amber
+                            )
+                        )
+                    )
+                    .graphicsScale(scale)
+            )
+            Spacer(Modifier.height(22.dp))
+            Text("雪线之上", color = Snow, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+            Spacer(Modifier.height(8.dp))
+            Text("收藏风经过的链接", color = Color(0xB3F6F1E8), fontSize = 14.sp)
         }
     }
 }
 
-@Composable
-fun CollectionHeader(total: Int, kw: String, onKw: (String) -> Unit,
-                     filter: String, onFilter: (String) -> Unit) {
-    Column(Modifier.padding(horizontal = 16.dp)) {
-        SectionTitle("我的收藏", "MY COLLECTION")
-        Spacer(Modifier.height(6.dp))
-        Text("共 $total 条 · 数据仅保存在本机，可随时导入导出", fontSize = 12.sp, color = Oat)
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(value = kw, onValueChange = onKw,
-            placeholder = { Text("搜索标题 / 作者 / 标签", fontSize = 13.sp, color = Oat) },
-            singleLine = true, modifier = Modifier.fillMaxWidth(), colors = darkField(),
-            leadingIcon = { androidx.compose.material3.Icon(Icons.Filled.Search, null, tint = Oat) })
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("all" to "全部", "image" to "图片", "video" to "视频").forEach { (k, label) ->
-                val active = filter == k
-                Box(Modifier.clip(PillShape).background(if (active) Amber else Color(0x22F6F1E8))
-                    .clickable { onFilter(k) }.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                    Text(label, fontSize = 12.5.sp, color = Snow)
-                }
-            }
-        }
-        Spacer(Modifier.height(2.dp))
-    }
-}
+private fun Modifier.graphicsScale(s: Float) = this.then(
+    Modifier.graphicsLayer(scaleX = s, scaleY = s)
+)
