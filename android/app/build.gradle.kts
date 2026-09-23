@@ -11,8 +11,8 @@ android {
         applicationId = "com.hiweny.snowline"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "2.0.1"
+        versionCode = 8
+        versionName = "2.0.2"
         vectorDrawables { useSupportLibrary = true }
     }
     // 发布版直接使用 debug 签名，保证任何人下载后都能直接安装

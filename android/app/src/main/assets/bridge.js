@@ -147,22 +147,33 @@
     blobMap.set(u, blob);
     return u;
   };
-  document.addEventListener('click', function (ev) {
-    var t = ev.target;
-    var a = t && t.closest ? t.closest('a[download]') : null;
-    if (!a) return;
+  // 处理导出锚点：读取 blob → 原生 SAF 保存；返回 true 表示已接管
+  function handleAnchor(a) {
     var href = a.href || '';
-    if (href.indexOf('blob:') !== 0) return;
-    ev.preventDefault();
-    ev.stopPropagation();
+    if (href.indexOf('blob:') !== 0) return false;
     var blob = blobMap.get(href);
-    if (!blob) { alert('导出失败：找不到内容'); return; }
+    if (!blob) { alert('导出失败：找不到内容'); return true; }
     var fr = new FileReader();
     fr.onload = function () {
       call('saveExport', [a.download || 'snowline-images.txt', String(fr.result)])
         .catch(function () { /* 用户取消 */ });
     };
     fr.readAsText(blob);
+    return true;
+  }
+
+  // 1) 网页导出用的是“未挂载到 DOM 的 a.click()”，事件不会冒泡到 document：
+  //    直接劫持 HTMLAnchorElement.prototype.click
+  var aClick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function () {
+    if (this.download && handleAnchor(this)) return;
+    return aClick.apply(this, arguments);
+  };
+  // 2) 兜底：页面内真实点击的下载链接
+  document.addEventListener('click', function (ev) {
+    var t = ev.target;
+    var a = t && t.closest ? t.closest('a[download]') : null;
+    if (a && handleAnchor(a)) { ev.preventDefault(); ev.stopPropagation(); }
   }, true);
 
   // ---------- 4. 锁定横向滚动 ----------
