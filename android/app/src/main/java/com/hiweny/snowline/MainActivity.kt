@@ -22,7 +22,7 @@ import com.hiweny.snowline.bridge.ExportSaver
 
 class MainActivity : ComponentActivity(), ExportSaver {
 
-    private lateinit var web: WebView
+    private lateinit var web: LockedWebView
     private var fileCallback: ValueCallback<Array<Uri>>? = null
 
     private val openFiles =
@@ -56,7 +56,7 @@ class MainActivity : ComponentActivity(), ExportSaver {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         super.onCreate(savedInstanceState)
 
-        web = WebView(this)
+        web = LockedWebView(this)
         setContentView(web)
         applyImmersive()
 

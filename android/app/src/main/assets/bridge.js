@@ -176,10 +176,7 @@
     if (a && handleAnchor(a)) { ev.preventDefault(); ev.stopPropagation(); }
   }, true);
 
-  // ---------- 4. 锁定横向滚动 ----------
-  var lock = document.createElement('style');
-  lock.textContent = 'html,body{overflow-x:hidden !important;overscroll-behavior-x:none;}';
-  (document.head || document.documentElement).appendChild(lock);
+  // 横向滚动由原生 LockedWebView 锁定（不在此注入 overflow-x，以免破坏顶栏 position:sticky）
 
   // ---------- 等待 React 渲染后挂载 ----------
   var tries = 0;
