@@ -1,205 +1,171 @@
 package com.hiweny.snowline
 
-import android.os.Build
+import android.annotation.SuppressLint
+import android.net.Uri
 import android.os.Bundle
+import android.view.View
+import android.webkit.PermissionRequest
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
-import com.hiweny.snowline.data.BgSettings
-import com.hiweny.snowline.ui.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import com.hiweny.snowline.bridge.Bridge
+import com.hiweny.snowline.bridge.ExportSaver
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), ExportSaver {
+
+    private lateinit var web: WebView
+    private var fileCallback: ValueCallback<Array<Uri>>? = null
+
+    private val openFiles =
+        registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+            val cb = fileCallback
+            fileCallback = null
+            cb?.onReceiveValue(if (uris.isNullOrEmpty()) null else uris.toTypedArray())
+        }
+
+    private var docLatch = CountDownLatch(0)
+    private val docResult = AtomicReference<Uri?>(null)
+    private val createDoc =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+            docResult.set(uri)
+            docLatch.countDown()
+        }
+
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 全屏沉浸式：内容绘制到所有系统栏区域
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { SnowlineTheme { AppRoot() } }
-    }
-}
 
-@Composable
-fun AppRoot(vm: AppVm = viewModel()) {
-    val bg by vm.bg.collectAsState()
-    val items by vm.items.collectAsState()
-    val toast = vm.toast
-    val busy = vm.busy
-    var showSettings by remember { mutableStateOf(false) }
-    var confirmClear by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val ctx = androidx.compose.ui.platform.LocalContext.current
+        web = WebView(this)
+        setContentView(web)
+        applyImmersive()
 
-    // 背景地址（随机模式每次进入随机一张收藏图）
-    var bgUrl by remember { mutableStateOf(vm.store.effectiveBgUrl()) }
-    LaunchedEffect(bg, items.size) { bgUrl = vm.store.effectiveBgUrl() }
+        web.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            databaseEnabled = true
+            mediaPlaybackRequiresUserGesture = false
+            allowFileAccess = true
+            allowContentAccess = true
+            loadWithOverviewMode = true
+            useWideViewPort = true
+            javaScriptCanOpenWindowsAutomatically = true
+            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+        }
+        web.addJavascriptInterface(Bridge(this), "SnowBridge")
 
-    // Toast 自动消失
-    LaunchedEffect(toast) {
-        if (toast != null) { kotlinx.coroutines.delay(2200); vm.clearToast() }
-    }
-
-    // 导入 / 导出（SAF，与网页 snowline-images.txt 互通）
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
-            val n = withContext(Dispatchers.IO) {
-                val text = ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }?.toString(Charsets.UTF_8).orEmpty()
-                vm.store.importText(text)
+        web.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(v: WebView, req: WebResourceRequest): Boolean {
+                val u = req.url
+                val s = u.scheme ?: ""
+                return if (s == "http" || s == "https") false
+                else try {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, u)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent); true
+                } catch (e: Exception) { true }
             }
-            if (n > 0) vm.t("导入成功 · $n 个图集 ✓") else vm.t("导入失败或文件为空")
-        }
-    }
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
-        if (uri != null) scope.launch {
-            withContext(Dispatchers.IO) {
-                ctx.contentResolver.openOutputStream(uri)?.use { it.write(vm.store.exportText().toByteArray()) }
+
+            override fun onPageFinished(view: WebView, url: String?) {
+                injectBridge()
             }
-            vm.t("已导出 snowline-images.txt ✓")
         }
+
+        web.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(
+                view: WebView, cb: ValueCallback<Array<Uri>>,
+                params: FileChooserParams
+            ): Boolean {
+                fileCallback?.onReceiveValue(null)
+                fileCallback = cb
+                val types = params.acceptTypes?.filter { it.isNotBlank() }?.toTypedArray()
+                val mime = when {
+                    types.isNullOrEmpty() -> arrayOf("*/*")
+                    types.any { it.contains("image") || it.contains("*/*") } -> arrayOf("*/*")
+                    else -> types
+                }
+                return try {
+                    openFiles.launch(mime); true
+                } catch (e: Exception) {
+                    fileCallback = null; false
+                }
+            }
+
+            override fun onPermissionRequest(request: PermissionRequest) {
+                request.deny()
+            }
+        }
+
+        if (savedInstanceState == null)
+            web.loadUrl("https://hiweny.github.io/collection/")
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (web.canGoBack()) web.goBack() else finish()
+            }
+        })
     }
 
-    // 启动闪屏
-    var splash by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(1100); splash = false
+    /** 注入桥接脚本（每次页面加载完成） */
+    private fun injectBridge() {
+        try {
+            val js = assets.open("bridge.js").bufferedReader().use { it.readText() }
+            web.evaluateJavascript(js, null as android.webkit.ValueCallback<String>?)
+        } catch (e: Exception) { /* ignore */ }
     }
 
-    // 闪屏背景：随机一张已收藏图片（收藏为空时回落背景图）
-    val splashImg = remember {
-        val pool = items.flatMap { mi ->
-            if (mi.mediaUrls.isNotEmpty()) mi.mediaUrls
-            else if (mi.coverUrl.isNotBlank()) listOf(mi.coverUrl) else emptyList()
-        }.filter { it.isNotBlank() && !it.startsWith("data:") }
-        pool.randomOrNull() ?: bgUrl
+    /** 全屏沉浸：隐藏状态栏与导航栏，滑动临时唤出 */
+    private fun applyImmersive() {
+        val controller = WindowInsetsControllerCompat(window, web)
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        @Suppress("DEPRECATION")
+        web.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
     }
 
-    Box(Modifier.fillMaxSize()) {
-        // 底层渐变
-        BodyGradient(Modifier.fillMaxSize()) {}
-        // 背景图片层
-        val b = bg.brightness / 100f
-        val cm = ColorMatrix(floatArrayOf(
-            b,0f,0f,0f,0f,
-            0f,b,0f,0f,0f,
-            0f,0f,b,0f,0f,
-            0f,0f,0f,1f,0f
-        ))
-        AsyncImage(
-            model = bgUrl, contentDescription = null, contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.colorMatrix(cm),
-            modifier = Modifier.fillMaxSize()
-                .then(if (Build.VERSION.SDK_INT >= 31) Modifier.blur(bg.blur.dp) else Modifier)
-                .alpha(.95f)
-        )
-
-        // 主内容（提供背景图地址，供卡片做磨砂玻璃）
-        androidx.compose.runtime.CompositionLocalProvider(LocalBackdropUrl provides bgUrl) {
-            HomeScreen(
-                vm = vm,
-                onImport = { runCatching { importLauncher.launch(arrayOf("text/*", "application/json", "text/plain", "*/*")) } },
-                onExport = { runCatching { exportLauncher.launch("snowline-images.txt") } },
-                onOpenSettings = { showSettings = true },
-                onClear = { confirmClear = true }
-            )
-        }
-
-        // 忙碌 / Toast
-        BusyAndToast(busy, toast)
-
-        // 弹窗
-        if (vm.transfer != null) TransferDialog(vm)
-        if (showSettings) SettingsDialog(vm, bg) { showSettings = false }
-
-        if (confirmClear) {
-            AlertDialog(
-                onDismissRequest = { confirmClear = false },
-                title = { Text("清空本地收藏？") },
-                text = { Text("将删除全部收藏，此操作不可恢复。建议先导出备份。") },
-                confirmButton = { TextButton(onClick = { vm.clearAll(); confirmClear = false }) { Text("清空", color = Color(0xFFE07070)) } },
-                dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("取消") } }
-            )
-        }
-
-        // 闪屏
-        AnimatedVisibility(visible = splash, exit = fadeOut()) {
-            Splash(splashImg)
-        }
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) applyImmersive()
     }
-}
 
-@Composable
-private fun Splash(bgUrl: String?) {
-    Box(
-        Modifier.fillMaxSize().background(Blue),
-        contentAlignment = Alignment.Center
-    ) {
-        if (!bgUrl.isNullOrBlank()) {
-            AsyncImage(
-                model = bgUrl, contentDescription = null, contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().alpha(.55f)
-            )
-        }
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x4D1B1F29), Color(0xB3121722)))))
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            val tr = androidx.compose.animation.core.rememberInfiniteTransition(label = "sp")
-            val scale by tr.animateFloat(
-                1f, 1.06f,
-                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                    androidx.compose.animation.core.tween(1200),
-                    androidx.compose.animation.core.RepeatMode.Reverse
-                ), label = "s"
-            )
-            Box(
-                Modifier.size(84.dp).clip(RoundedCornerShape(22.dp))
-                    .background(
-                        Brush.linearGradient(
-                            colorStops = arrayOf(
-                                0f to Snow, .31f to Snow, .3101f to Sky,
-                                .67f to Sky, .6701f to Amber, 1f to Amber
-                            )
-                        )
-                    )
-                    .graphicsScale(scale)
-            )
-            Spacer(Modifier.height(22.dp))
-            Text("雪线之上", color = Snow, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
-            Spacer(Modifier.height(8.dp))
-            Text("收藏风经过的链接", color = Color(0xB3F6F1E8), fontSize = 14.sp)
-        }
+    override fun onResume() {
+        super.onResume()
+        applyImmersive()
+    }
+
+    /** ExportSaver：导出文本到用户 SAF 选择的位置（由桥接 binder 线程调用） */
+    override fun saveText(filename: String, text: String): Boolean {
+        docLatch = CountDownLatch(1)
+        docResult.set(null)
+        runOnUiThread { createDoc.launch(filename) }
+        if (!docLatch.await(5, TimeUnit.MINUTES)) return false
+        val uri = docResult.get() ?: return false
+        return try {
+            contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
+            runOnUiThread { Toast.makeText(this, "已导出 ✓", Toast.LENGTH_SHORT).show() }
+            true
+        } catch (e: Exception) { false }
     }
 }
-
-private fun Modifier.graphicsScale(s: Float) = this.then(
-    Modifier.graphicsLayer(scaleX = s, scaleY = s)
-)
