@@ -67,22 +67,6 @@ fun HomeScreen(
     // 首次有图后初始化每日卡片
     LaunchedEffect(items.size) { vm.ensureDaily() }
 
-    // 预加载收藏图片（进入时即把首屏之外的图拉进磁盘/内存缓存，避免滑到才空白加载）
-    val ctx0 = LocalContext.current
-    LaunchedEffect(items) {
-        items.forEach { mi ->
-            val u = if (mi.mediaUrls.isNotEmpty()) mi.mediaUrls[mi.idx.coerceAtLeast(0) % mi.mediaUrls.size]
-            else mi.coverUrl
-            if (u.isNotBlank()) {
-                runCatching {
-                    ctx0.imageLoader.enqueue(
-                        coil.request.ImageRequest.Builder(ctx0).data(u).build()
-                    )
-                }
-            }
-        }
-    }
-
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val showBack by remember { derivedStateOf { listState.firstVisibleItemIndex > 1 || listState.firstVisibleItemScrollOffset > 300 } }

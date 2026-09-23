@@ -34,6 +34,8 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     data class TransferReq(val item: MediaItem, val picked: MutableList<Boolean>,
                            var converting: Boolean = false, var progress: String = "")
     var transfer by mutableStateOf<TransferReq?>(null); private set
+    // 解析后弹转存窗时，暂存“清空输入框”回调，转存成功后才清空（取消则不清）
+    private var pendingInputClear: (() -> Unit)? = null
 
     // -------- 图床工具（与网页一致：外链/本地上传结果汇入同一结果框） --------
     var extInput by mutableStateOf(""); private set
@@ -204,6 +206,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     private fun finishParse(parsed: MediaItem?, onDone: () -> Unit, videoMsg: String) {
         if (parsed == null) { t("解析失败，请检查链接或稍后重试"); return }
         if (parsed.mediaUrls.isNotEmpty()) {
+            pendingInputClear = onDone
             transfer = TransferReq(parsed, MutableList(parsed.mediaUrls.size) { true })
         } else {
             store.add(parsed); onDone(); t("解析成功 ✓（$videoMsg）")
@@ -219,7 +222,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     fun selectNone() { val r = transfer ?: return; r.picked.indices.forEach { r.picked[it] = false }; transfer = r.copy() }
     fun refreshTransfer() { transfer = transfer?.copy() }
 
-    fun cancelTransfer() { transfer = null }
+    fun cancelTransfer() { transfer = null; pendingInputClear = null }
 
     fun confirmTransfer(onDone: () -> Unit) {
         val req = transfer ?: return
@@ -245,7 +248,8 @@ class AppVm(app: Application) : AndroidViewModel(app) {
                     mediaUrls = converted, coverUrl = cover ?: "", type = "image"
                 )
                 store.add(saved)
-                transfer = null; onDone()
+                transfer = null
+                pendingInputClear?.invoke(); pendingInputClear = null
                 t("已转存并收藏 ${converted.size} 张图片 ✓")
             } catch (e: Exception) {
                 req.converting = false; req.progress = ""; transfer = req.copy()

@@ -14,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.lifecycle.ViewModelProvider
 import com.hiweny.snowline.MainActivity
 import com.hiweny.snowline.data.MediaItem
@@ -162,13 +163,13 @@ class HomeScreenshotTest {
         must("图床上传的单张图片")
         must("这是一个抖音视频作品")
         shot("02_grid")
-        rule.onNode(hasText("ABOVE THE SNOWLINE")).performScrollTo()
+        rule.onNode(hasScrollAction()).performScrollToNode(hasText("ABOVE THE SNOWLINE"))
         rule.waitForIdle()
         must("ABOVE THE SNOWLINE")
         must("全部收藏")
         must("图片")
         must("视频")
-        rule.onNode(hasText("Hiweny", substring = true)).performScrollTo()
+        rule.onNode(hasScrollAction()).performScrollToNode(hasText("Hiweny", substring = true))
         rule.waitForIdle()
         must("Hiweny")
         must("制作 · 雪线之上", substring = true)
@@ -230,7 +231,11 @@ class HomeScreenshotTest {
         )
         vm().store.clear(); vm().store.addAll(listOf(one))
         rule.waitForIdle(); dismissSplash()
-        Thread.sleep(4000) // 等 Coil 软件模糊变换完成
+        println("DAILY TARGET => ${vm().dailyTarget}")
+        repeat(8) {
+            Thread.sleep(1000)
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        }
         rule.waitForIdle()
         shot("06_glass")
     }

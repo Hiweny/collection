@@ -13,7 +13,7 @@ class BlurTransformation(private val radius: Float = 20f) : Transformation {
     override val cacheKey: String = "snowline-blur-$radius"
 
     override suspend fun transform(input: Bitmap, size: Size): Bitmap {
-        val targetW = 180
+        val targetW = 220
         val scale = targetW.toFloat() / input.width
         val w = targetW
         val h = (input.height * scale).coerceAtLeast(1f).toInt()

@@ -18,6 +18,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -96,8 +97,9 @@ val LocalBackdropUrl = staticCompositionLocalOf<String?> { null }
 
 /**
  * 玻璃卡片（对照网页 .card / .parser / .top）：
- * API31+ 取背景图在卡片区域的副本，RenderEffect 模糊后叠加半透明色调 = 真正的 iOS 磨砂玻璃；
- * API26-30 无 RenderEffect，降级为半透明纯色填充。
+ * 背景图在卡片区域的副本经软件模糊（一次性烘焙进小位图，绘制廉价、全 API 一致），
+ * 再叠加网页同款半透明色调 / 高光 / 描边 = iOS 磨砂玻璃。
+ * 背景层 matchParentSize，卡片尺寸完全由内容决定。
  */
 @Composable
 fun GlassCard(
@@ -108,6 +110,7 @@ fun GlassCard(
     borderColor: Color = Color(0x1FFFFFFF),
     contentPadding: PaddingValues = PaddingValues(0.dp),
     blurRadius: Dp = 18.dp,
+    frost: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val backdropUrl = LocalBackdropUrl.current
@@ -115,8 +118,7 @@ fun GlassCard(
     var pos by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(Offset.Zero) }
     val density = LocalDensity.current
     val view = LocalView.current
-    val frosted = !backdropUrl.isNullOrBlank() && view.width > 0
-    val gpuBlur = Build.VERSION.SDK_INT >= 31
+    val frosted = frost && !backdropUrl.isNullOrBlank() && view.width > 0
     val overscan = 30.dp
 
     Box(
@@ -129,28 +131,30 @@ fun GlassCard(
             val rootH = with(density) { view.height.toDp() }
             val ovPx = with(density) { overscan.toPx() }
             val blurPx = with(density) { blurRadius.toPx() }
-            // API31+：原图 + GPU RenderEffect 模糊；低版本：Coil 软件模糊小位图
-            val model: Any = if (gpuBlur) backdropUrl!! else {
+            // 模糊一次性烘焙进小位图（Coil 缓存共享），所有系统版本效果一致
+            val model: Any = remember(backdropUrl, blurPx) {
                 coil.request.ImageRequest.Builder(context)
                     .data(backdropUrl)
                     .size(300, 660)
                     .transformations(BlurTransformation(blurPx))
                     .build()
             }
-            coil.compose.AsyncImage(
-                model = model,
-                contentDescription = null,
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier
-                    .align(androidx.compose.ui.Alignment.TopStart)
-                    .width(rootW + overscan * 2)
-                    .height(rootH + overscan * 2)
-                    .graphicsLayer {
-                        translationX = -pos.x + ovPx
-                        translationY = -pos.y + ovPx
-                    }
-                    .then(if (gpuBlur) Modifier.blur(blurRadius) else Modifier)
-            )
+            // 包装层 matchParentSize：背景层不参与卡片测量，卡片不会被撑成全屏
+            Box(Modifier.matchParentSize()) {
+                coil.compose.AsyncImage(
+                    model = model,
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier
+                        .align(androidx.compose.ui.Alignment.TopStart)
+                        .width(rootW + overscan * 2)
+                        .height(rootH + overscan * 2)
+                        .graphicsLayer {
+                            translationX = -pos.x + ovPx
+                            translationY = -pos.y + ovPx
+                        }
+                )
+            }
         }
         // 色调层
         val tintModifier = if (tint != null) Modifier.background(tint) else Modifier.background(fill)
@@ -164,6 +168,6 @@ fun GlassCard(
             )
         )
         Box(Modifier.matchParentSize().border(1.dp, borderColor, shape))
-        Column(Modifier.matchParentSize().padding(contentPadding), content = content)
+        Column(Modifier.padding(contentPadding), content = content)
     }
 }

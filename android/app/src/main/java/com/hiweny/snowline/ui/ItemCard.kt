@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem as ExoMediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
@@ -54,36 +55,30 @@ fun ItemCard(it: MediaItem, vm: AppVm) {
     val current = if (hasImages) images[idx % images.size] else cover
     val ctx = LocalContext.current
 
+    // 对照网页 .item：无 backdrop 模糊，145deg 半透明渐变，圆角24，内容自适应
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        fill = Color(0x12F6F1E8),
-        borderColor = Color(0x1FFFFFFF)
+        tint = Brush.linearGradient(listOf(Color(0x17F6F1E8), Color(0x472C303B))),
+        borderColor = Color(0x1FFFFFFF),
+        frost = false
     ) {
-        // 媒体区
+        // 媒体区：宽度100%、高度随图片/视频原始比例（对照 .media img{width:100%;height:auto}）
         Box(
-            Modifier.fillMaxWidth().heightIn(min = 180.dp)
-                .background(Brush.linearGradient(listOf(Color(0x4D62909B), Color(0x1FAB977E)))),
+            Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center
         ) {
             when {
                 images.size > 1 -> Gallery(it, current, idx, vm)
                 it.videoUrl.isNotBlank() -> VideoBox(it)
-                cover.isNotBlank() -> coil.compose.SubcomposeAsyncImage(
+                cover.isNotBlank() -> AsyncImage(
                     model = cover,
                     contentDescription = it.title,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxWidth(),
-                    loading = {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner(26.dp, Muted) }
-                    },
-                    error = {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("NO PREVIEW", color = Color(0x66F6F1E8), fontSize = 13.sp)
-                        }
-                    }
+                    modifier = Modifier.fillMaxWidth()
                 )
-                else -> Text("NO PREVIEW", color = Color(0x66F6F1E8), fontSize = 13.sp)
+                else -> Text("NO PREVIEW", color = Color(0x66F6F1E8), fontSize = 13.sp,
+                    modifier = Modifier.padding(vertical = 40.dp))
             }
         }
         // 文本区
@@ -195,6 +190,8 @@ private fun FlipBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, modif
 private fun VideoBox(it: MediaItem) {
     Column(Modifier.fillMaxWidth()) {
         val ctx = LocalContext.current
+        // 宽高比随视频真实尺寸（对照网页 video 宽度100%高度自适应），默认 16:9
+        var aspect by remember { mutableFloatStateOf(16f / 9f) }
         val player = remember(it.videoUrl) {
             ExoPlayer.Builder(ctx).build().apply {
                 val miBuilder = ExoMediaItem.Builder().setUri(it.videoUrl)
@@ -205,12 +202,18 @@ private fun VideoBox(it: MediaItem) {
                     )
                 }
                 setMediaItem(miBuilder.build())
+                addListener(object : Player.Listener {
+                    override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                        if (videoSize.width > 0 && videoSize.height > 0)
+                            aspect = videoSize.width.toFloat() / videoSize.height
+                    }
+                })
                 prepare()
             }
         }
         DisposableEffect(it.videoUrl) { onDispose { player.release() } }
         var started by remember { mutableStateOf(false) }
-        Box(Modifier.fillMaxWidth().height(220.dp).background(Color.Black)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(aspect).background(Color.Black)) {
             AndroidView(
                 factory = { c ->
                     PlayerView(c).apply {
@@ -228,7 +231,7 @@ private fun VideoBox(it: MediaItem) {
                 AsyncImage(
                     model = it.coverUrl,
                     contentDescription = null,
-                    contentScale = ContentScale.Crop,
+                    contentScale = ContentScale.Fit,
                     modifier = Modifier.matchParentSize()
                 )
                 Box(

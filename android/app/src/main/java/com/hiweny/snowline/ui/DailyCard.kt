@@ -51,16 +51,10 @@ fun DailyCard(vm: AppVm, carousel: Boolean) {
         vm.rollDaily()
     }
 
-    // 图片即时挂载，由加载结果驱动淡入；4.5s 兜底，绝不卡在空白
-    var imgReady by remember { mutableStateOf(false) }
-    LaunchedEffect(target) {
-        imgReady = false
-        delay(4500); imgReady = true
-    }
-    val imgAlpha by animateFloatAsState(if (imgReady) 1f else 0f, tween(600), label = "dailyImg")
-
-    // 一言字号对照网页 clamp(22px,6vw,32px)
-    val quoteSize = (LocalConfiguration.current.screenWidthDp * 0.06f).coerceIn(22f, 32f)
+    // 一言字号对照网页：移动端 clamp(22px,6vw,32px)，桌面 clamp(26px,4.5vw,48px)
+    val wdp = LocalConfiguration.current.screenWidthDp
+    val quoteSize = if (narrow) (wdp * 0.06f).coerceIn(22f, 32f)
+    else (wdp * 0.045f).coerceIn(26f, 48f)
 
     GlassCard(
         modifier = Modifier
@@ -73,22 +67,27 @@ fun DailyCard(vm: AppVm, carousel: Boolean) {
         blurRadius = 18.dp
     ) {
         Box(
-            Modifier.weight(1f).fillMaxWidth().heightIn(min = imgMin)
+            Modifier.fillMaxWidth().heightIn(min = imgMin)
                 .background(Color(0x4D121722)),
             contentAlignment = Alignment.Center
         ) {
             if (target.isNullOrBlank()) {
                 Text("收藏夹空空如也，添加几张图吧", color = Color(0x66F6F1E8), fontSize = 15.sp)
             } else {
-                AsyncImage(
-                    model = target,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    onSuccess = { imgReady = true },
-                    onError = { imgReady = true },
-                    modifier = Modifier.padding(12.dp).fillMaxWidth().heightIn(max = 520.dp)
-                        .clip(RoundedCornerShape(18.dp)).alpha(imgAlpha)
-                )
+                // 淡入淡出切换（AnimatedContent 在测试时钟下自动到终态，不会卡空白）
+                AnimatedContent(
+                    targetState = target,
+                    transitionSpec = { fadeIn(tween(600)) togetherWith fadeOut(tween(600)) },
+                    label = "dailyImg"
+                ) { t ->
+                    AsyncImage(
+                        model = t,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.padding(12.dp).fillMaxWidth().heightIn(max = 520.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                    )
+                }
             }
         }
         // 底部渐变文案区

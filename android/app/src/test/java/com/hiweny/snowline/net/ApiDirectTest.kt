@@ -48,4 +48,21 @@ class ApiDirectTest {
         assertEquals(parsed.mediaUrls.size, transferred.size)
         assertTrue(transferred.none { it.contains("douyinpic") || it.contains("douyin") })
     }
+
+    @Test
+    fun douyin_parse_new_link() {
+        val short = "https://v.douyin.com/U7GNPD9NFzc/"
+        val final = Api.expandShort(short) ?: short
+        println("expanded => $final")
+        val base = MediaItem(id = "t2", platform = "douyin", type = "video",
+            sourceUrl = short, resolvedUrl = final, tags = listOf("douyin"))
+        val parsed = Api.parseDouyin(base, short) ?: Api.parseDouyin(base, final)
+        assertNotNull("解析失败", parsed)
+        println("images=${parsed!!.mediaUrls.size} title=${parsed.title}")
+        assertTrue(parsed.mediaUrls.isNotEmpty())
+        val transferred = Api.batchTransfer(parsed.mediaUrls)
+        transferred.forEach { println("saved => $it") }
+        assertEquals(parsed.mediaUrls.size, transferred.size)
+        assertTrue(transferred.none { it.contains("douyinpic") || it.contains("douyin") })
+    }
 }
