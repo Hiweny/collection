@@ -19,9 +19,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.hiweny.snowline.bridge.Bridge
 import com.hiweny.snowline.bridge.ExportSaver
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
 
 class MainActivity : ComponentActivity(), ExportSaver {
 
@@ -35,12 +32,22 @@ class MainActivity : ComponentActivity(), ExportSaver {
             cb?.onReceiveValue(if (uris.isNullOrEmpty()) null else uris.toTypedArray())
         }
 
-    private var docLatch = CountDownLatch(0)
-    private val docResult = AtomicReference<Uri?>(null)
+    private var pendingText: String? = null
+    private var saveCallback: ((Boolean) -> Unit)? = null
     private val createDoc =
         registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
-            docResult.set(uri)
-            docLatch.countDown()
+            val cb = saveCallback
+            saveCallback = null
+            if (uri == null) { cb?.invoke(false); return@registerForActivityResult }
+            Thread {
+                val ok = try {
+                    contentResolver.openOutputStream(uri)
+                        ?.use { it.write(pendingText?.toByteArray()) }
+                    runOnUiThread { Toast.makeText(this, "已导出 ✓", Toast.LENGTH_SHORT).show() }
+                    true
+                } catch (e: Exception) { false }
+                cb?.invoke(ok)
+            }.start()
         }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -65,7 +72,10 @@ class MainActivity : ComponentActivity(), ExportSaver {
             javaScriptCanOpenWindowsAutomatically = true
             mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         }
-        web.addJavascriptInterface(Bridge(this), "SnowBridge")
+        web.addJavascriptInterface(Bridge(web, this), "SnowBridge")
+        // 固定页面：禁用水平滚动条与回弹，防止左右晃动
+        web.isHorizontalScrollBarEnabled = false
+        web.overScrollMode = View.OVER_SCROLL_NEVER
 
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(v: WebView, req: WebResourceRequest): Boolean {
@@ -155,17 +165,10 @@ class MainActivity : ComponentActivity(), ExportSaver {
         applyImmersive()
     }
 
-    /** ExportSaver：导出文本到用户 SAF 选择的位置（由桥接 binder 线程调用） */
-    override fun saveText(filename: String, text: String): Boolean {
-        docLatch = CountDownLatch(1)
-        docResult.set(null)
+    /** ExportSaver：弹出 SAF 另存为，完成后回调（不阻塞任何线程） */
+    override fun saveText(filename: String, text: String, callback: (Boolean) -> Unit) {
+        pendingText = text
+        saveCallback = callback
         runOnUiThread { createDoc.launch(filename) }
-        if (!docLatch.await(5, TimeUnit.MINUTES)) return false
-        val uri = docResult.get() ?: return false
-        return try {
-            contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
-            runOnUiThread { Toast.makeText(this, "已导出 ✓", Toast.LENGTH_SHORT).show() }
-            true
-        } catch (e: Exception) { false }
     }
 }

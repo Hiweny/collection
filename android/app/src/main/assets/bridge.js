@@ -1,14 +1,31 @@
 /* 雪线之上 · WebView 原生桥接（零侵入网页）
- * 1. fetch 补丁：pone 上传 / 360 转存 / bugpk 解析全部本地直连，绕过 CORS
+ * 1. fetch 补丁：pone 上传 / 360 转存 / bugpk 解析全部本地直连，绕过 CORS（异步，不卡页面）
  * 2. 解析按钮拦截：抖音/小红书本地解析+全部转存，回填“标题\n链接”后由网页直接收藏（无选择弹窗）
  * 3. 导出拦截：blob 下载转 SAF 保存
+ * 4. 锁定横向滚动
  */
 (function () {
   'use strict';
   if (window.__snowBridgeInstalled) return;
   window.__snowBridgeInstalled = true;
 
-  var B = window.SnowBridge;
+  var B = window.SnowBridge, seq = 0, cbs = {};
+
+  // 原生回调入口
+  B._emit = function (id, type, payload) {
+    var c = cbs[id];
+    if (!c) return;
+    if (type === 'progress') { c.progress && c.progress(payload); return; }
+    delete cbs[id];
+    if (type === 'error') c.rej(payload); else c.res(payload);
+  };
+  function call(method, args, onProgress) {
+    return new Promise(function (res, rej) {
+      var id = 'c' + (++seq);
+      cbs[id] = { res: res, rej: rej, progress: onProgress };
+      B[method].apply(B, args.concat([id]));
+    });
+  }
 
   // ---------- 工具 ----------
   function b64(blob) {
@@ -19,7 +36,6 @@
       fr.readAsDataURL(blob);
     });
   }
-  // 去掉代理前缀，取出真实目标地址
   function realUrl(u) {
     ['https://api.yujn.cn', 'https://api.bugpk.com', 'https://pone.rs'].forEach(function (t) {
       var i = u.indexOf(t);
@@ -27,30 +43,31 @@
     });
     return u;
   }
-  // 简易忙碌提示（独立 DOM，不修改网页结构）
   function overlay(show, msg) {
     var el = document.getElementById('__snow_ov');
     if (!show) { if (el) el.remove(); return; }
-    if (el) { el.querySelector('span').textContent = msg; return; }
+    if (el) { el.querySelector('span.snow-tx').textContent = msg; return; }
     el = document.createElement('div');
     el.id = '__snow_ov';
     el.setAttribute('style', 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(10,13,20,.55);');
     var p = document.createElement('div');
     p.setAttribute('style', 'display:inline-flex;align-items:center;gap:10px;padding:14px 22px;border-radius:999px;background:rgba(44,48,59,.92);border:1px solid rgba(255,255,255,.18);color:#F6F1E8;font-size:14px;');
-    var sp = document.createElement('span'); sp.className = 'spin';
+    var sp = document.createElement('span');
     sp.setAttribute('style', 'width:18px;height:18px;border:2px solid rgba(246,241,232,.3);border-top-color:#C78444;border-radius:50%;display:inline-block;animation:__spin .8s linear infinite;');
-    var tx = document.createElement('span'); tx.textContent = msg;
+    var tx = document.createElement('span');
+    tx.className = 'snow-tx';
+    tx.textContent = msg;
     p.appendChild(sp); p.appendChild(tx); el.appendChild(p);
     document.body.appendChild(el);
     if (!document.getElementById('__snow_kf')) {
-      var st = document.createElement('style');
-      st.id = '__snow_kf';
-      st.textContent = '@keyframes __spin{to{transform:rotate(360deg)}}';
-      document.head.appendChild(st);
+      var kf = document.createElement('style');
+      kf.id = '__snow_kf';
+      kf.textContent = '@keyframes __spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(kf);
     }
   }
 
-  // ---------- 1. fetch 补丁 ----------
+  // ---------- 1. fetch 补丁（异步本地直连） ----------
   var ofetch = window.fetch.bind(window);
   window.fetch = async function (input, init) {
     var url = typeof input === 'string' ? input : ((input && input.url) || '');
@@ -69,11 +86,11 @@
             }
           }
         }
-        var json = B.poneUpload(JSON.stringify(parts));
+        var json = await call('poneUpload', [JSON.stringify(parts)]);
         return new Response(json, { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       if (url.indexOf('api.bugpk.com') >= 0 || url.indexOf('/api/360_img.php') >= 0) {
-        var body = B.httpGet(realUrl(url));
+        var body = await call('httpGet', [realUrl(url)]);
         return new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
     } catch (err) { console.log('snow bridge fetch fallback:', err); }
@@ -109,8 +126,7 @@
       var raw = ta.value || '';
       overlay(true, '本地解析转存中，请稍候…');
       try {
-        await new Promise(function (r) { requestAnimationFrame(r); });
-        var r = JSON.parse(B.nativeParse(raw));
+        var r = JSON.parse(await call('nativeParse', [raw], function (m) { overlay(true, m); }));
         overlay(false);
         if (r.passthrough) { passThrough(); }
         else if (r.ok) { fillTa(r.text); passThrough(); }
@@ -143,11 +159,16 @@
     if (!blob) { alert('导出失败：找不到内容'); return; }
     var fr = new FileReader();
     fr.onload = function () {
-      var ok = B.saveExport(a.download || 'snowline-images.txt', String(fr.result));
-      if (!ok) console.log('export canceled');
+      call('saveExport', [a.download || 'snowline-images.txt', String(fr.result)])
+        .catch(function () { /* 用户取消 */ });
     };
     fr.readAsText(blob);
   }, true);
+
+  // ---------- 4. 锁定横向滚动 ----------
+  var lock = document.createElement('style');
+  lock.textContent = 'html,body{overflow-x:hidden !important;overscroll-behavior-x:none;}';
+  (document.head || document.documentElement).appendChild(lock);
 
   // ---------- 等待 React 渲染后挂载 ----------
   var tries = 0;
